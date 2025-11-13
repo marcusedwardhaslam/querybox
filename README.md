@@ -1,79 +1,50 @@
 # QueryBox
 
-A free and open source SQL GUI made in Electron with TypeScript.
+QueryBox is a free, modern SQL GUI for MySQL. Browse, edit, and query your databases with a beautiful native interface - no subscriptions, no limits
+
+![QueryBox screenshot](docs/images/screenshot.png)
 
 ## Features
 
-- 🎨 **Native-Looking Design System** - Beautiful UI that feels at home on any platform
-- 🌓 **Dark/Light Mode** - Automatic theme switching based on system preferences
-- 💻 **TypeScript** - Full type safety and modern development experience
-- ⚡ **Electron** - Cross-platform desktop application
+- **Browse tables** with pagination
+- **Edit rows** inline (insert, update, delete)
+- **Filter data** visually - no SQL required
+- **Raw SQL editor** with results table
+- **Export** any dataset as CSV, SQL, or JSON
+- **Multiple databases** per connection
+- **Schema inspector** for tables, columns, keys, and indexes
 
-## Getting Started
+## Why QueryBox?
 
-### Prerequisites
+- 100% free and open source
+- Native performance and design
+- No telemetry, no cloud
+- Built for developers and data professionals
 
-- Node.js 18+ and npm
+## Installation
 
-### Installation
+### 1. Download & Run
 
-```bash
-npm install
-```
+- **macOS**: [Download latest release](https://github.com/marcusedwardhaslam/querybox/releases) and open the app.
+- **Linux/Windows**: Coming soon!
 
-### Development
+### 2. Connect to MySQL
 
-```bash
-# Build the application
-npm run build:dev
+- Host: `localhost:3306` (or your server)
+- User: your MySQL username
+- Password: your MySQL password
 
-# Start the application
-npm start
+> For development, you can spin up a local MySQL server with Docker:
+>
+> ```sh
+> cd dev && docker compose up -d
+> # Host: localhost:3306, User: queryuser, Pass: querypass, DB: querybox
+> ```
 
-# Watch mode (auto-rebuild on changes)
-npm run dev
-```
+## Community & Support
 
-### Production Build
+- [GitHub Issues](https://github.com/marcusedwardhaslam/querybox/issues) - Bug reports & feature requests
 
-```bash
-# Create optimized production build
-npm run build
+---
 
-# Package the application for distribution
-npm run package
-```
-
-## Design System
-
-QueryBox includes a comprehensive design system with:
-
-- **Color Schemes**: Light and dark mode with native-inspired colors
-- **Typography**: System fonts for native appearance
-- **Components**: Buttons, inputs, dropdowns, tables, and more
-- **Layout Utilities**: Flexbox, spacing, and responsive utilities
-
-For detailed documentation, see [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md).
-
-## Project Structure
-
-```
-querybox/
-├── src/
-│   ├── main/              # Electron main process
-│   │   └── main.ts
-│   └── renderer/          # Electron renderer process
-│       ├── components/
-│       ├── design-system/ # Design system SCSS files
-│       ├── styles/        # Main stylesheet
-│       ├── index.html
-│       └── renderer.ts
-├── dist/                  # Build output
-├── tsconfig.json
-├── webpack.config.js
-└── package.json
-```
-
-## License
-
-MIT
+QueryBox is open source and welcomes contributions!
