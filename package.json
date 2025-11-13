@@ -11,7 +11,12 @@
     "package": "electron-builder",
     "test": "echo \"No tests specified\""
   },
-  "keywords": ["sql", "database", "electron", "gui"],
+  "keywords": [
+    "sql",
+    "database",
+    "electron",
+    "gui"
+  ],
   "author": "",
   "license": "MIT",
   "build": {
@@ -28,10 +33,15 @@
       "category": "public.app-category.developer-tools"
     },
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "linux": {
-      "target": ["AppImage", "deb"]
+      "target": [
+        "AppImage",
+        "deb"
+      ]
     }
   },
   "devDependencies": {
@@ -48,5 +58,11 @@
     "typescript": "^5.9.3",
     "webpack": "^5.102.1",
     "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "@types/react": "^19.2.4",
+    "@types/react-dom": "^19.2.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   }
 }

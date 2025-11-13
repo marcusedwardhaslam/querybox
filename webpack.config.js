@@ -30,19 +30,19 @@ const mainConfig = {
 
 const rendererConfig = {
   mode: 'development',
-  entry: './src/renderer/renderer.ts',
+  entry: './src/renderer/renderer.tsx',
   target: 'electron-renderer',
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: 'renderer.js'
   },
   resolve: {
-    extensions: ['.ts', '.js']
+    extensions: ['.tsx', '.ts', '.js']
   },
   module: {
     rules: [
       {
-        test: /\.ts$/,
+        test: /\.tsx?$/,
         use: 'ts-loader',
         exclude: /node_modules/
       },
