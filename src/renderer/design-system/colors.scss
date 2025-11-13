@@ -1,0 +1,136 @@
+// Design System - Color Palette
+// Native-looking color scheme for both dark and light modes
+
+// Light Mode Colors
+$light-bg-primary: #ffffff;
+$light-bg-secondary: #f5f5f5;
+$light-bg-tertiary: #ebebeb;
+$light-bg-hover: #e5e5e5;
+$light-bg-active: #d4d4d4;
+
+$light-text-primary: #1e1e1e;
+$light-text-secondary: #616161;
+$light-text-tertiary: #858585;
+$light-text-disabled: #a8a8a8;
+
+$light-border-primary: #d1d1d1;
+$light-border-secondary: #e0e0e0;
+$light-border-focus: #0078d4;
+
+$light-accent-primary: #0078d4;
+$light-accent-hover: #106ebe;
+$light-accent-active: #005a9e;
+
+$light-success: #107c10;
+$light-warning: #f7630c;
+$light-error: #d13438;
+$light-info: #0078d4;
+
+// Dark Mode Colors
+$dark-bg-primary: #1e1e1e;
+$dark-bg-secondary: #252525;
+$dark-bg-tertiary: #2d2d2d;
+$dark-bg-hover: #3a3a3a;
+$dark-bg-active: #484848;
+
+$dark-text-primary: #ffffff;
+$dark-text-secondary: #cccccc;
+$dark-text-tertiary: #9d9d9d;
+$dark-text-disabled: #6e6e6e;
+
+$dark-border-primary: #3a3a3a;
+$dark-border-secondary: #2d2d2d;
+$dark-border-focus: #0078d4;
+
+$dark-accent-primary: #0078d4;
+$dark-accent-hover: #1a86d8;
+$dark-accent-active: #3399e5;
+
+$dark-success: #6ccb5f;
+$dark-warning: #ffa943;
+$dark-error: #f85149;
+$dark-info: #58a6ff;
+
+// CSS Custom Properties for Theme Switching
+:root {
+  // Light mode by default
+  --bg-primary: #{$light-bg-primary};
+  --bg-secondary: #{$light-bg-secondary};
+  --bg-tertiary: #{$light-bg-tertiary};
+  --bg-hover: #{$light-bg-hover};
+  --bg-active: #{$light-bg-active};
+
+  --text-primary: #{$light-text-primary};
+  --text-secondary: #{$light-text-secondary};
+  --text-tertiary: #{$light-text-tertiary};
+  --text-disabled: #{$light-text-disabled};
+
+  --border-primary: #{$light-border-primary};
+  --border-secondary: #{$light-border-secondary};
+  --border-focus: #{$light-border-focus};
+
+  --accent-primary: #{$light-accent-primary};
+  --accent-hover: #{$light-accent-hover};
+  --accent-active: #{$light-accent-active};
+
+  --success: #{$light-success};
+  --warning: #{$light-warning};
+  --error: #{$light-error};
+  --info: #{$light-info};
+}
+
+// Dark mode
+[data-theme='dark'] {
+  --bg-primary: #{$dark-bg-primary};
+  --bg-secondary: #{$dark-bg-secondary};
+  --bg-tertiary: #{$dark-bg-tertiary};
+  --bg-hover: #{$dark-bg-hover};
+  --bg-active: #{$dark-bg-active};
+
+  --text-primary: #{$dark-text-primary};
+  --text-secondary: #{$dark-text-secondary};
+  --text-tertiary: #{$dark-text-tertiary};
+  --text-disabled: #{$dark-text-disabled};
+
+  --border-primary: #{$dark-border-primary};
+  --border-secondary: #{$dark-border-secondary};
+  --border-focus: #{$dark-border-focus};
+
+  --accent-primary: #{$dark-accent-primary};
+  --accent-hover: #{$dark-accent-hover};
+  --accent-active: #{$dark-accent-active};
+
+  --success: #{$dark-success};
+  --warning: #{$dark-warning};
+  --error: #{$dark-error};
+  --info: #{$dark-info};
+}
+
+// Prefers dark mode
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg-primary: #{$dark-bg-primary};
+    --bg-secondary: #{$dark-bg-secondary};
+    --bg-tertiary: #{$dark-bg-tertiary};
+    --bg-hover: #{$dark-bg-hover};
+    --bg-active: #{$dark-bg-active};
+
+    --text-primary: #{$dark-text-primary};
+    --text-secondary: #{$dark-text-secondary};
+    --text-tertiary: #{$dark-text-tertiary};
+    --text-disabled: #{$dark-text-disabled};
+
+    --border-primary: #{$dark-border-primary};
+    --border-secondary: #{$dark-border-secondary};
+    --border-focus: #{$dark-border-focus};
+
+    --accent-primary: #{$dark-accent-primary};
+    --accent-hover: #{$dark-accent-hover};
+    --accent-active: #{$dark-accent-active};
+
+    --success: #{$dark-success};
+    --warning: #{$dark-warning};
+    --error: #{$dark-error};
+    --info: #{$dark-info};
+  }
+}

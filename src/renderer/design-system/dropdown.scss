@@ -1,0 +1,287 @@
+// Design System - Dropdown and Select Components
+@import './colors.scss';
+@import './typography.scss';
+@import './spacing.scss';
+
+// Select Box
+.select {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+
+  select {
+    width: 100%;
+    padding: $spacing-2 $spacing-8 $spacing-2 $spacing-3;
+    font-family: $font-family-system;
+    font-size: $font-size-sm;
+    line-height: $line-height-normal;
+    color: var(--text-primary);
+    background-color: var(--bg-primary);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right $spacing-3 center;
+    background-size: 12px;
+    border: 1px solid var(--border-primary);
+    border-radius: $radius-md;
+    outline: none;
+    appearance: none;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+
+    &:hover:not(:disabled) {
+      border-color: var(--border-focus);
+    }
+
+    &:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    }
+
+    &:disabled {
+      background-color: var(--bg-secondary);
+      color: var(--text-disabled);
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    option {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+    }
+  }
+
+  // Size variants
+  &.select-sm select {
+    padding: $spacing-1 $spacing-6 $spacing-1 $spacing-2;
+    font-size: $font-size-xs;
+  }
+
+  &.select-lg select {
+    padding: $spacing-3 $spacing-10 $spacing-3 $spacing-4;
+    font-size: $font-size-base;
+  }
+}
+
+// Custom Dropdown
+.dropdown {
+  position: relative;
+  display: inline-block;
+
+  .dropdown-trigger {
+    cursor: pointer;
+  }
+
+  .dropdown-menu {
+    position: absolute;
+    top: calc(100% + $spacing-1);
+    left: 0;
+    min-width: 200px;
+    max-height: 300px;
+    overflow-y: auto;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: $radius-md;
+    box-shadow: var(--shadow-lg);
+    z-index: $z-index-dropdown;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.2s ease-in-out;
+
+    &.dropdown-open {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    // Right aligned
+    &.dropdown-right {
+      left: auto;
+      right: 0;
+    }
+
+    // Up direction
+    &.dropdown-up {
+      top: auto;
+      bottom: calc(100% + $spacing-1);
+      transform: translateY(10px);
+
+      &.dropdown-open {
+        transform: translateY(0);
+      }
+    }
+  }
+
+  .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: $spacing-2;
+    padding: $spacing-2 $spacing-4;
+    font-size: $font-size-sm;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.15s ease-in-out;
+    white-space: nowrap;
+
+    &:hover {
+      background-color: var(--bg-hover);
+    }
+
+    &:active {
+      background-color: var(--bg-active);
+    }
+
+    &.dropdown-item-active {
+      background-color: var(--bg-secondary);
+      color: var(--accent-primary);
+    }
+
+    &.dropdown-item-disabled {
+      color: var(--text-disabled);
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    &:first-child {
+      border-top-left-radius: $radius-md;
+      border-top-right-radius: $radius-md;
+    }
+
+    &:last-child {
+      border-bottom-left-radius: $radius-md;
+      border-bottom-right-radius: $radius-md;
+    }
+  }
+
+  .dropdown-divider {
+    height: 1px;
+    margin: $spacing-2 0;
+    background-color: var(--border-secondary);
+  }
+
+  .dropdown-header {
+    padding: $spacing-2 $spacing-4;
+    font-size: $font-size-xs;
+    font-weight: $font-weight-semibold;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: $letter-spacing-wide;
+  }
+}
+
+// Context Menu (right-click menu)
+.context-menu {
+  position: fixed;
+  min-width: 180px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: $radius-md;
+  box-shadow: var(--shadow-lg);
+  z-index: $z-index-popover;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease-in-out;
+
+  &.context-menu-open {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .context-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: $spacing-4;
+    padding: $spacing-2 $spacing-4;
+    font-size: $font-size-sm;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.15s ease-in-out;
+
+    &:hover {
+      background-color: var(--bg-hover);
+    }
+
+    &:active {
+      background-color: var(--bg-active);
+    }
+
+    &.context-menu-item-danger {
+      color: var(--error);
+    }
+
+    &.context-menu-item-disabled {
+      color: var(--text-disabled);
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .context-menu-shortcut {
+      font-size: $font-size-xs;
+      color: var(--text-tertiary);
+    }
+  }
+
+  .context-menu-divider {
+    height: 1px;
+    margin: $spacing-1 0;
+    background-color: var(--border-secondary);
+  }
+}
+
+// Combobox (autocomplete)
+.combobox {
+  position: relative;
+  width: 100%;
+
+  .combobox-input {
+    @extend .input;
+  }
+
+  .combobox-dropdown {
+    position: absolute;
+    top: calc(100% + $spacing-1);
+    left: 0;
+    right: 0;
+    max-height: 250px;
+    overflow-y: auto;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: $radius-md;
+    box-shadow: var(--shadow-lg);
+    z-index: $z-index-dropdown;
+    display: none;
+
+    &.combobox-open {
+      display: block;
+    }
+  }
+
+  .combobox-option {
+    display: flex;
+    align-items: center;
+    gap: $spacing-2;
+    padding: $spacing-2 $spacing-3;
+    font-size: $font-size-sm;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.15s ease-in-out;
+
+    &:hover,
+    &.combobox-option-focused {
+      background-color: var(--bg-hover);
+    }
+
+    &.combobox-option-selected {
+      background-color: var(--bg-secondary);
+      color: var(--accent-primary);
+    }
+  }
+
+  .combobox-empty {
+    padding: $spacing-4;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: $font-size-sm;
+  }
+}
