@@ -1,0 +1,308 @@
+// Design System - Table Component
+@import './colors.scss';
+@import './typography.scss';
+@import './spacing.scss';
+
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border-primary);
+  border-radius: $radius-md;
+  background-color: var(--bg-primary);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: $font-size-sm;
+  font-family: $font-family-system;
+
+  thead {
+    background-color: var(--bg-secondary);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+
+    tr {
+      border-bottom: 1px solid var(--border-primary);
+    }
+
+    th {
+      padding: $spacing-3 $spacing-4;
+      text-align: left;
+      font-weight: $font-weight-semibold;
+      color: var(--text-primary);
+      white-space: nowrap;
+      user-select: none;
+
+      &.sortable {
+        cursor: pointer;
+        position: relative;
+        padding-right: $spacing-8;
+
+        &:hover {
+          background-color: var(--bg-hover);
+        }
+
+        &::after {
+          content: '↕';
+          position: absolute;
+          right: $spacing-3;
+          color: var(--text-tertiary);
+        }
+
+        &.sorted-asc::after {
+          content: '↑';
+          color: var(--accent-primary);
+        }
+
+        &.sorted-desc::after {
+          content: '↓';
+          color: var(--accent-primary);
+        }
+      }
+
+      &.resizable {
+        position: relative;
+
+        .resize-handle {
+          position: absolute;
+          right: 0;
+          top: 0;
+          bottom: 0;
+          width: 4px;
+          cursor: col-resize;
+          user-select: none;
+
+          &:hover {
+            background-color: var(--accent-primary);
+          }
+        }
+      }
+    }
+  }
+
+  tbody {
+    tr {
+      border-bottom: 1px solid var(--border-secondary);
+      transition: background-color 0.15s ease-in-out;
+
+      &:hover {
+        background-color: var(--bg-hover);
+      }
+
+      &.selected {
+        background-color: rgba(0, 120, 212, 0.1);
+      }
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+
+    td {
+      padding: $spacing-3 $spacing-4;
+      color: var(--text-primary);
+      vertical-align: middle;
+
+      &.cell-number {
+        text-align: right;
+        font-family: $font-family-mono;
+      }
+
+      &.cell-centered {
+        text-align: center;
+      }
+
+      &.cell-truncate {
+        max-width: 200px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+  }
+
+  // Compact table variant
+  &.table-compact {
+    thead th {
+      padding: $spacing-2 $spacing-3;
+    }
+
+    tbody td {
+      padding: $spacing-2 $spacing-3;
+    }
+  }
+
+  // Striped table variant
+  &.table-striped {
+    tbody tr:nth-child(even) {
+      background-color: var(--bg-secondary);
+
+      &:hover {
+        background-color: var(--bg-hover);
+      }
+    }
+  }
+
+  // Bordered table variant
+  &.table-bordered {
+    td, th {
+      border: 1px solid var(--border-secondary);
+    }
+  }
+
+  // Fixed layout
+  &.table-fixed {
+    table-layout: fixed;
+  }
+}
+
+// Table cell with actions
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-2;
+  justify-content: flex-end;
+
+  .table-action-btn {
+    padding: $spacing-1;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: $radius-sm;
+    transition: all 0.15s ease-in-out;
+
+    &:hover {
+      background-color: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    &:active {
+      background-color: var(--bg-active);
+    }
+  }
+}
+
+// Table pagination
+.table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $spacing-4;
+  border-top: 1px solid var(--border-primary);
+  background-color: var(--bg-secondary);
+
+  .pagination-info {
+    font-size: $font-size-sm;
+    color: var(--text-secondary);
+  }
+
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: $spacing-2;
+
+    .pagination-btn {
+      padding: $spacing-1 $spacing-3;
+      font-size: $font-size-sm;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-primary);
+      border-radius: $radius-sm;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
+
+      &:hover:not(:disabled) {
+        background-color: var(--bg-hover);
+        border-color: var(--border-focus);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      &.active {
+        background-color: var(--accent-primary);
+        color: #ffffff;
+        border-color: var(--accent-primary);
+      }
+    }
+  }
+
+  .pagination-size-selector {
+    display: flex;
+    align-items: center;
+    gap: $spacing-2;
+    font-size: $font-size-sm;
+
+    select {
+      padding: $spacing-1 $spacing-6 $spacing-1 $spacing-2;
+      border: 1px solid var(--border-primary);
+      border-radius: $radius-sm;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: $font-size-sm;
+      cursor: pointer;
+    }
+  }
+}
+
+// Empty state
+.table-empty {
+  padding: $spacing-16 $spacing-4;
+  text-align: center;
+
+  .table-empty-icon {
+    font-size: $font-size-4xl;
+    color: var(--text-tertiary);
+    margin-bottom: $spacing-4;
+  }
+
+  .table-empty-title {
+    font-size: $font-size-lg;
+    font-weight: $font-weight-medium;
+    color: var(--text-primary);
+    margin-bottom: $spacing-2;
+  }
+
+  .table-empty-description {
+    font-size: $font-size-sm;
+    color: var(--text-secondary);
+  }
+}
+
+// Loading state
+.table-loading {
+  position: relative;
+  min-height: 200px;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+[data-theme='dark'] .table-loading::after {
+  background-color: rgba(30, 30, 30, 0.8);
+}
+
+// Checkbox column
+.table-checkbox {
+  width: 40px;
+  text-align: center;
+
+  input[type='checkbox'] {
+    cursor: pointer;
+  }
+}
