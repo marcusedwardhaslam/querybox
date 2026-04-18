@@ -2,8 +2,8 @@ use gpui::*;
 use std::sync::Arc;
 
 use crate::connection::ConnectionManager;
-use crate::db::{DatabaseDriver, types::Dialect};
 use crate::db::types::Value;
+use crate::db::{types::Dialect, DatabaseDriver};
 use crate::query::filter::filters_to_sql;
 
 use super::connection_dialog::{ConnectionDialog, ConnectionDialogEvent};
@@ -38,9 +38,8 @@ impl AppView {
                     let driver = this.connection_manager.driver_arc();
                     let database = this.sidebar.read(cx).selected_database.clone();
                     let tab_id = this.tab_bar.update(cx, |bar, cx| bar.open_query(cx));
-                    let view = cx.new(|cx| {
-                        super::editor_view::EditorView::new(driver, database, cx)
-                    });
+                    let view =
+                        cx.new(|cx| super::editor_view::EditorView::new(driver, database, cx));
                     this.editor_views.push((tab_id, view));
                     cx.notify();
                 }
@@ -77,8 +76,12 @@ impl AppView {
                 crate::db_runtime().spawn(async move {
                     let mut manager = ConnectionManager::new();
                     match manager.connect_new(profile, &password).await {
-                        Ok(()) => { tx.send(Ok(manager)).ok(); }
-                        Err(e) => { tx.send(Err(e.to_string())).ok(); }
+                        Ok(()) => {
+                            tx.send(Ok(manager)).ok();
+                        }
+                        Err(e) => {
+                            tx.send(Err(e.to_string())).ok();
+                        }
                     }
                 });
 
@@ -154,19 +157,30 @@ impl AppView {
 
         // Subscribe to events on this view
         let view2 = view.clone();
-        cx.subscribe(&view, move |this, _entity, event: &TableViewEvent, cx| {
-            match event {
+        cx.subscribe(
+            &view,
+            move |this, _entity, event: &TableViewEvent, cx| match event {
                 TableViewEvent::FiltersChanged => {
                     if let Some(driver) = this.connection_manager.driver_arc() {
                         let tv = view2.read(cx);
                         let database = tv.database.clone();
                         let table = tv.table_name.clone();
                         let filters = tv.active_filters.clone();
-                        let dialect = this.connection_manager.driver()
+                        let dialect = this
+                            .connection_manager
+                            .driver()
                             .map(|d| d.dialect())
                             .unwrap_or(Dialect::MySql);
                         drop(tv);
-                        AppView::query_table(driver, database, table, filters, dialect, view2.clone(), cx);
+                        AppView::query_table(
+                            driver,
+                            database,
+                            table,
+                            filters,
+                            dialect,
+                            view2.clone(),
+                            cx,
+                        );
                     }
                 }
                 TableViewEvent::SaveChanges(updates) => {
@@ -175,12 +189,16 @@ impl AppView {
                         AppView::save_and_reload(driver, updates, view2.clone(), cx);
                     }
                 }
-            }
-        })
+            },
+        )
         .detach();
 
         // Initial load
-        let dialect = this.connection_manager.driver().map(|d| d.dialect()).unwrap_or(Dialect::MySql);
+        let dialect = this
+            .connection_manager
+            .driver()
+            .map(|d| d.dialect())
+            .unwrap_or(Dialect::MySql);
         AppView::query_table(driver, database, table, vec![], dialect, view, cx);
     }
 
@@ -199,20 +217,29 @@ impl AppView {
             "SELECT * FROM `{}`.`{}` {} LIMIT 500",
             database, table, where_clause
         );
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<crate::db::types::QueryResult, String>>();
+        let (tx, rx) =
+            tokio::sync::oneshot::channel::<Result<crate::db::types::QueryResult, String>>();
         crate::db_runtime().spawn(async move {
             match driver.query(&sql, &params).await {
-                Ok(result) => { tx.send(Ok(result)).ok(); }
-                Err(e) => { tx.send(Err(e.to_string())).ok(); }
+                Ok(result) => {
+                    tx.send(Ok(result)).ok();
+                }
+                Err(e) => {
+                    tx.send(Err(e.to_string())).ok();
+                }
             }
         });
-        cx.spawn(async move |_this: WeakEntity<AppView>, cx: &mut AsyncApp| {
-            match rx.await {
-                Ok(Ok(result)) => { view.update(cx, |v, cx| v.set_data(result, cx)); }
-                Ok(Err(e)) => { view.update(cx, |v, cx| v.set_error(e, cx)); }
+        cx.spawn(
+            async move |_this: WeakEntity<AppView>, cx: &mut AsyncApp| match rx.await {
+                Ok(Ok(result)) => {
+                    view.update(cx, |v, cx| v.set_data(result, cx));
+                }
+                Ok(Err(e)) => {
+                    view.update(cx, |v, cx| v.set_error(e, cx));
+                }
                 Err(_) => {}
-            }
-        })
+            },
+        )
         .detach();
     }
 
@@ -225,10 +252,14 @@ impl AppView {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
         crate::db_runtime().spawn(async move {
             for update in &updates {
-                let set_clauses: Vec<String> = update.edits.iter()
+                let set_clauses: Vec<String> = update
+                    .edits
+                    .iter()
                     .map(|e| format!("`{}` = ?", e.column))
                     .collect();
-                let where_clauses: Vec<String> = update.pk_columns.iter()
+                let where_clauses: Vec<String> = update
+                    .pk_columns
+                    .iter()
                     .map(|pk| format!("`{}` = ?", pk))
                     .collect();
                 let sql = format!(
@@ -238,7 +269,9 @@ impl AppView {
                     set_clauses.join(", "),
                     where_clauses.join(" AND "),
                 );
-                let mut params: Vec<Value> = update.edits.iter()
+                let mut params: Vec<Value> = update
+                    .edits
+                    .iter()
                     .map(|e| Value::String(e.new_value.clone()))
                     .collect();
                 params.extend(update.pk_values.clone());
@@ -250,28 +283,44 @@ impl AppView {
             tx.send(Ok(())).ok();
         });
 
-        cx.spawn(async move |this: WeakEntity<AppView>, cx: &mut AsyncApp| {
-            match rx.await {
+        cx.spawn(
+            async move |this: WeakEntity<AppView>, cx: &mut AsyncApp| match rx.await {
                 Ok(Ok(())) => {
                     this.update(cx, |app_view, cx| {
                         let (database, table, filters, dialect) = {
                             let tv = view.read(cx);
-                            let dialect = app_view.connection_manager.driver()
+                            let dialect = app_view
+                                .connection_manager
+                                .driver()
                                 .map(|d| d.dialect())
                                 .unwrap_or(Dialect::MySql);
-                            (tv.database.clone(), tv.table_name.clone(), tv.active_filters.clone(), dialect)
+                            (
+                                tv.database.clone(),
+                                tv.table_name.clone(),
+                                tv.active_filters.clone(),
+                                dialect,
+                            )
                         };
                         if let Some(driver) = app_view.connection_manager.driver_arc() {
-                            AppView::query_table(driver, database, table, filters, dialect, view.clone(), cx);
+                            AppView::query_table(
+                                driver,
+                                database,
+                                table,
+                                filters,
+                                dialect,
+                                view.clone(),
+                                cx,
+                            );
                         }
-                    }).ok();
+                    })
+                    .ok();
                 }
                 Ok(Err(e)) => {
                     view.update(cx, |v, cx| v.set_error(e, cx));
                 }
                 Err(_) => {}
-            }
-        })
+            },
+        )
         .detach();
     }
 
@@ -283,8 +332,12 @@ impl AppView {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<String>, String>>();
         crate::db_runtime().spawn(async move {
             match driver.databases().await {
-                Ok(dbs) => { tx.send(Ok(dbs)).ok(); }
-                Err(e) => { tx.send(Err(e.to_string())).ok(); }
+                Ok(dbs) => {
+                    tx.send(Ok(dbs)).ok();
+                }
+                Err(e) => {
+                    tx.send(Err(e.to_string())).ok();
+                }
             }
         });
         cx.spawn(async move |_this: WeakEntity<AppView>, cx: &mut AsyncApp| {
@@ -307,8 +360,12 @@ impl AppView {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<String>, String>>();
         crate::db_runtime().spawn(async move {
             match driver.tables(&database).await {
-                Ok(tables) => { tx.send(Ok(tables)).ok(); }
-                Err(e) => { tx.send(Err(e.to_string())).ok(); }
+                Ok(tables) => {
+                    tx.send(Ok(tables)).ok();
+                }
+                Err(e) => {
+                    tx.send(Err(e.to_string())).ok();
+                }
             }
         });
         cx.spawn(async move |_this: WeakEntity<AppView>, cx: &mut AsyncApp| {
@@ -324,8 +381,28 @@ impl AppView {
 }
 
 impl Render for AppView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let active_tab = self.tab_bar.read(cx).active_tab;
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let tab_bar = self.tab_bar.read(cx);
+        let active_tab = tab_bar.active_tab;
+        let sidebar = self.sidebar.read(cx);
+
+        let title = {
+            let conn_name = sidebar.connection_name.clone();
+            match conn_name {
+                None => "Querybox - Configuring a connection".to_string(),
+                Some(name) => {
+                    let suffix = active_tab
+                        .and_then(|id| tab_bar.tabs.iter().find(|t| t.id == id))
+                        .map(|tab| match &tab.kind {
+                            super::tab_bar::TabKind::Table { table, .. } => format!(" - {}", table),
+                            super::tab_bar::TabKind::Query { .. } => " - New Query".to_string(),
+                        })
+                        .unwrap_or_default();
+                    format!("Querybox - {}{}", name, suffix)
+                }
+            }
+        };
+        window.set_window_title(&title);
 
         div()
             .flex()

@@ -8,6 +8,8 @@ use gpui::*;
 use gpui_platform::application;
 use std::sync::OnceLock;
 
+actions!(querybox, [Quit]);
+
 static DB_RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
 
 pub fn db_runtime() -> &'static tokio::runtime::Runtime {
@@ -24,6 +26,10 @@ fn main() {
     // Initialize the DB runtime before starting the UI so it's ready on first use.
     db_runtime();
     application().run(|cx: &mut App| {
+        cx.on_action(|_: &Quit, cx| cx.quit());
+        cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
+        cx.set_menus([Menu::new("QueryBox").items([MenuItem::action("Quit", Quit)])]);
+
         ui::text_field::register_text_field_actions(cx);
         ui::sql_editor::register_sql_editor_actions(cx);
         ui::table_view::register_table_view_actions(cx);
