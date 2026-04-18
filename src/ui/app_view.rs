@@ -13,6 +13,7 @@ use super::tab_bar::TabBar;
 use super::table_view::{RowUpdate, TableView, TableViewEvent};
 
 pub struct AppView {
+    focus_handle: FocusHandle,
     connection_manager: ConnectionManager,
     sidebar: Entity<Sidebar>,
     tab_bar: Entity<TabBar>,
@@ -125,6 +126,7 @@ impl AppView {
         .detach();
 
         Self {
+            focus_handle: cx.focus_handle(),
             connection_manager: ConnectionManager::new(),
             sidebar,
             tab_bar,
@@ -172,7 +174,7 @@ impl AppView {
                             .driver()
                             .map(|d| d.dialect())
                             .unwrap_or(Dialect::MySql);
-                        drop(tv);
+                        let _ = tv;
                         AppView::query_table(
                             driver,
                             database,
@@ -409,6 +411,12 @@ impl AppView {
     }
 }
 
+impl Focusable for AppView {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus_handle.clone()
+    }
+}
+
 impl Render for AppView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let (active_tab, title) = {
@@ -438,6 +446,8 @@ impl Render for AppView {
             .flex()
             .flex_col()
             .size_full()
+            .track_focus(&self.focus_handle)
+            .on_action(cx.listener(Self::close_active_tab))
             .bg(rgb(0x181825))
             .text_color(rgb(0xcdd6f4))
             .text_size(px(13.))
@@ -464,6 +474,21 @@ impl Render for AppView {
 }
 
 impl AppView {
+    fn close_active_tab(
+        &mut self,
+        _: &crate::CloseTab,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let active_tab = self.tab_bar.read(cx).active_tab;
+        if let Some(tab_id) = active_tab {
+            self.tab_bar.update(cx, |bar, cx| bar.close_tab(tab_id, cx));
+            self.table_views.retain(|(id, _)| *id != tab_id);
+            self.editor_views.retain(|(id, _)| *id != tab_id);
+            cx.notify();
+        }
+    }
+
     fn render_active_content(&self, active_tab: Option<usize>) -> impl IntoElement {
         if let Some(tab_id) = active_tab {
             for (id, view) in &self.table_views {

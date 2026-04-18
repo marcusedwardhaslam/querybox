@@ -8,7 +8,7 @@ use gpui::*;
 use gpui_platform::application;
 use std::sync::OnceLock;
 
-actions!(querybox, [Quit]);
+actions!(querybox, [Quit, CloseTab]);
 
 static DB_RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
 
@@ -27,7 +27,10 @@ fn main() {
     db_runtime();
     application().run(|cx: &mut App| {
         cx.on_action(|_: &Quit, cx| cx.quit());
-        cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
+        cx.bind_keys([
+            KeyBinding::new("cmd-q", Quit, None),
+            KeyBinding::new("cmd-w", CloseTab, None),
+        ]);
         cx.set_menus([Menu::new("QueryBox").items([MenuItem::action("Quit", Quit)])]);
 
         ui::text_field::register_text_field_actions(cx);
