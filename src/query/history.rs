@@ -36,10 +36,12 @@ impl QueryHistory {
         }
     }
 
+    #[allow(dead_code)]
     pub fn entries(&self) -> &[HistoryEntry] {
         &self.entries
     }
 
+    #[allow(dead_code)]
     pub fn load(connection_id: &str) -> Self {
         let path = Self::history_path(connection_id);
         let entries = if path.exists() {
@@ -56,16 +58,18 @@ impl QueryHistory {
         }
     }
 
+    #[allow(dead_code)]
     pub fn save(&self, connection_id: &str) -> Result<(), std::io::Error> {
         let path = Self::history_path(connection_id);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
         let data = serde_json::to_string(&self.entries)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
         fs::write(&path, data)
     }
 
+    #[allow(dead_code)]
     fn history_path(connection_id: &str) -> PathBuf {
         let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
         base.join("querybox")

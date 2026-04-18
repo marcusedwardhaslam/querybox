@@ -27,14 +27,17 @@ pub trait DatabaseDriver: Send + Sync {
     where
         Self: Sized;
 
+    #[allow(dead_code)]
     async fn disconnect(&self) -> Result<(), DbError>;
 
     async fn databases(&self) -> Result<Vec<String>, DbError>;
 
     async fn tables(&self, database: &str) -> Result<Vec<String>, DbError>;
 
+    #[allow(dead_code)]
     async fn columns(&self, database: &str, table: &str) -> Result<Vec<Column>, DbError>;
 
+    #[allow(dead_code)]
     async fn indexes(&self, database: &str, table: &str) -> Result<Vec<Index>, DbError>;
 
     async fn query(&self, sql: &str, params: &[Value]) -> Result<QueryResult, DbError>;

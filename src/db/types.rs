@@ -41,6 +41,7 @@ pub struct Column {
 
 /// An index on a table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct Index {
     pub name: String,
     pub columns: Vec<String>,
@@ -55,11 +56,13 @@ pub type Row = Vec<Value>;
 pub struct QueryResult {
     pub columns: Vec<Column>,
     pub rows: Vec<Row>,
+    #[allow(dead_code)]
     pub affected_rows: u64,
     pub execution_time_ms: u64,
 }
 
 impl QueryResult {
+    #[allow(dead_code)]
     pub fn empty() -> Self {
         Self {
             columns: vec![],

@@ -28,7 +28,7 @@ impl EditorView {
             error: None,
             running: false,
             history: QueryHistory::new(),
-            editor: cx.new(|cx| SqlEditor::new(cx)),
+            editor: cx.new(SqlEditor::new),
             driver,
             database,
             scroll_handle: ScrollHandle::new(),

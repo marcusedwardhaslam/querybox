@@ -596,7 +596,7 @@ impl TableView {
         let col_open = self.column_dropdown_open;
         let op_open = self.op_dropdown_open;
 
-        let mut form = div()
+        let form = div()
             .flex()
             .flex_col()
             .px(px(12.))

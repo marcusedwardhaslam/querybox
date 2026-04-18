@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use gpui::*;
 
 use crate::db::types::{Column, Index};

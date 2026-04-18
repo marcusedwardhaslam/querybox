@@ -256,7 +256,7 @@ fn mysql_row_to_values(row: &mysql_async::Row) -> Row {
                         Value::String(s)
                     }
                     mysql_async::Value::Time(neg, days, hours, mins, secs, _usec) => {
-                        let total_hours = *days as u32 * 24 + *hours as u32;
+                        let total_hours = *days * 24 + *hours as u32;
                         let sign = if *neg { "-" } else { "" };
                         Value::String(format!(
                             "{}{:02}:{:02}:{:02}",

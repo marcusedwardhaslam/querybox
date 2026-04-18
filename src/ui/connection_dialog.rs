@@ -166,7 +166,7 @@ impl ConnectionDialog {
         self.engine = profile.engine;
         self.name_field.update(cx, |f, cx| f.set_content(&profile.name, cx));
         self.host_field.update(cx, |f, cx| f.set_content(&profile.host, cx));
-        self.port_field.update(cx, |f, cx| f.set_content(&profile.port.to_string(), cx));
+        self.port_field.update(cx, |f, cx| f.set_content(profile.port.to_string(), cx));
         self.user_field.update(cx, |f, cx| f.set_content(&profile.user, cx));
         let pw = storage::get_password(profile).ok().flatten().unwrap_or_default();
         self.password_field.update(cx, |f, cx| f.set_content(&pw, cx));

@@ -7,6 +7,7 @@ use crate::db::{mysql::MySqlDriver, postgres::PostgresDriver, sqlite::SqliteDriv
 use profile::{ConnectionProfile, DatabaseEngine};
 
 pub struct ConnectionManager {
+    #[allow(dead_code)]
     pub profiles: Vec<ConnectionProfile>,
     active_driver: Option<Arc<dyn DatabaseDriver>>,
     pub active_profile: Option<ConnectionProfile>,
@@ -42,6 +43,7 @@ impl ConnectionManager {
         self.active_profile = Some(profile);
     }
 
+    #[allow(dead_code)]
     pub async fn disconnect(&mut self) -> Result<(), DbError> {
         if let Some(driver) = self.active_driver.take() {
             driver.disconnect().await?;
@@ -67,6 +69,7 @@ impl ConnectionManager {
         })
     }
 
+    #[allow(dead_code)]
     pub fn save(&self) -> Result<(), storage::StorageError> {
         storage::save_profiles(&self.profiles)
     }

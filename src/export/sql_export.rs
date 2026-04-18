@@ -6,7 +6,7 @@ pub fn export(result: &QueryResult, table_name: &str) -> String {
     let cols_joined = col_names.join(", ");
 
     for row in &result.rows {
-        let values: Vec<String> = row.iter().map(|v| sql_literal(v)).collect();
+        let values: Vec<String> = row.iter().map(sql_literal).collect();
         lines.push(format!(
             "INSERT INTO {} ({}) VALUES ({});",
             table_name,

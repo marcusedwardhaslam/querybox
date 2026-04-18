@@ -107,7 +107,7 @@ impl SqlEditor {
             line_start = line_end + 1;
         }
         // cursor at very end
-        let last_line = self.content.split('\n').last().unwrap_or("");
+        let last_line = self.content.split('\n').next_back().unwrap_or("");
         let ls = self.content.len().saturating_sub(last_line.len());
         let n = self.content.split('\n').count();
         (n.saturating_sub(1), self.content.len() - ls, ls)
@@ -123,8 +123,7 @@ impl SqlEditor {
                 let adjusted = line
                     .grapheme_indices(true)
                     .map(|(idx, _)| idx)
-                    .filter(|&idx| idx <= clamped)
-                    .last()
+                    .rfind(|&idx| idx <= clamped)
                     .unwrap_or(0);
                 return offset + adjusted;
             }
@@ -447,6 +446,7 @@ impl Render for SqlEditor {
     }
 }
 
+#[allow(dead_code)]
 fn when<E: IntoElement>(cond: bool, f: impl FnOnce() -> E) -> Option<E> {
     if cond { Some(f()) } else { None }
 }

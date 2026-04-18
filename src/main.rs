@@ -42,7 +42,7 @@ fn main() {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 ..Default::default()
             },
-            |_, cx| cx.new(|cx| ui::app_view::AppView::new(cx)),
+            |_, cx| cx.new(ui::app_view::AppView::new),
         )
         .unwrap();
         cx.activate(true);

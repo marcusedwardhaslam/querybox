@@ -27,7 +27,7 @@ impl AppView {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let sidebar = cx.new(|_| Sidebar::new());
         let tab_bar = cx.new(|_| TabBar::new());
-        let connection_dialog = cx.new(|cx| ConnectionDialog::new(cx));
+        let connection_dialog = cx.new(ConnectionDialog::new);
 
         cx.subscribe(&sidebar, {
             let connection_dialog = connection_dialog.clone();
@@ -206,6 +206,7 @@ impl AppView {
         AppView::query_table(driver, database, table, vec![], dialect, 0, view, cx);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn query_table(
         driver: Arc<dyn DatabaseDriver>,
         database: String,
