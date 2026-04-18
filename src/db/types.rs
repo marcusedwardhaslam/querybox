@@ -50,6 +50,7 @@ pub struct Index {
 
 /// A foreign key constraint on a table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct ForeignKey {
     pub column: String,
     pub ref_database: String,
