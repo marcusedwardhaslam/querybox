@@ -16,6 +16,7 @@ pub struct Sidebar {
     pub tables: Vec<String>,
     pub selected_table: Option<String>,
     db_expanded: bool,
+    scroll_handle: ScrollHandle,
 }
 
 impl EventEmitter<SidebarEvent> for Sidebar {}
@@ -30,6 +31,7 @@ impl Sidebar {
             tables: vec![],
             selected_table: None,
             db_expanded: false,
+            scroll_handle: ScrollHandle::new(),
         }
     }
 }
@@ -39,6 +41,8 @@ impl Render for Sidebar {
         div()
             .w(px(220.))
             .flex_shrink_0()
+            .h_full()
+            .overflow_hidden()
             .bg(rgb(0x1e1e2e))
             .border_r_1()
             .border_color(rgb(0x333333))
@@ -169,7 +173,9 @@ impl Sidebar {
         let mut list = div()
             .id("sidebar-table-list")
             .flex_1()
+            .min_h(px(0.))
             .overflow_y_scroll()
+            .track_scroll(&self.scroll_handle)
             .py(px(4.))
             .child(
                 div()

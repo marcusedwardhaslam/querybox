@@ -160,12 +160,13 @@ impl AppView {
         cx.subscribe(
             &view,
             move |this, _entity, event: &TableViewEvent, cx| match event {
-                TableViewEvent::FiltersChanged => {
+                TableViewEvent::FiltersChanged | TableViewEvent::PageChanged => {
                     if let Some(driver) = this.connection_manager.driver_arc() {
                         let tv = view2.read(cx);
                         let database = tv.database.clone();
                         let table = tv.table_name.clone();
                         let filters = tv.active_filters.clone();
+                        let page = tv.page;
                         let dialect = this
                             .connection_manager
                             .driver()
@@ -178,6 +179,7 @@ impl AppView {
                             table,
                             filters,
                             dialect,
+                            page,
                             view2.clone(),
                             cx,
                         );
@@ -199,7 +201,7 @@ impl AppView {
             .driver()
             .map(|d| d.dialect())
             .unwrap_or(Dialect::MySql);
-        AppView::query_table(driver, database, table, vec![], dialect, view, cx);
+        AppView::query_table(driver, database, table, vec![], dialect, 0, view, cx);
     }
 
     fn query_table(
@@ -208,31 +210,56 @@ impl AppView {
         table: String,
         filters: Vec<crate::query::filter::Filter>,
         dialect: Dialect,
+        page: usize,
         view: Entity<TableView>,
         cx: &mut Context<Self>,
     ) {
+        const PAGE_SIZE: usize = 100;
         view.update(cx, |v, cx| v.set_loading(cx));
         let (where_clause, params) = filters_to_sql(&filters, dialect);
-        let sql = format!(
-            "SELECT * FROM `{}`.`{}` {} LIMIT 500",
+        let data_sql = format!(
+            "SELECT * FROM `{}`.`{}` {} LIMIT {} OFFSET {}",
+            database,
+            table,
+            where_clause,
+            PAGE_SIZE,
+            page * PAGE_SIZE
+        );
+        let count_sql = format!(
+            "SELECT COUNT(*) FROM `{}`.`{}` {}",
             database, table, where_clause
         );
-        let (tx, rx) =
-            tokio::sync::oneshot::channel::<Result<crate::db::types::QueryResult, String>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<
+            Result<(crate::db::types::QueryResult, Option<u64>), String>,
+        >();
+        let driver2 = driver.clone();
+        let params2 = params.clone();
         crate::db_runtime().spawn(async move {
-            match driver.query(&sql, &params).await {
-                Ok(result) => {
-                    tx.send(Ok(result)).ok();
-                }
+            let data_result = match driver.query(&data_sql, &params).await {
+                Ok(r) => r,
                 Err(e) => {
                     tx.send(Err(e.to_string())).ok();
+                    return;
                 }
-            }
+            };
+            let total = match driver2.query(&count_sql, &params2).await {
+                Ok(r) => r
+                    .rows
+                    .first()
+                    .and_then(|row| row.first())
+                    .and_then(|v| match v {
+                        crate::db::types::Value::Int(n) => Some(*n as u64),
+                        crate::db::types::Value::String(s) => s.parse().ok(),
+                        _ => None,
+                    }),
+                Err(_) => None,
+            };
+            tx.send(Ok((data_result, total))).ok();
         });
         cx.spawn(
             async move |_this: WeakEntity<AppView>, cx: &mut AsyncApp| match rx.await {
-                Ok(Ok(result)) => {
-                    view.update(cx, |v, cx| v.set_data(result, cx));
+                Ok(Ok((result, total))) => {
+                    view.update(cx, |v, cx| v.set_data(result, total, cx));
                 }
                 Ok(Err(e)) => {
                     view.update(cx, |v, cx| v.set_error(e, cx));
@@ -287,7 +314,7 @@ impl AppView {
             async move |this: WeakEntity<AppView>, cx: &mut AsyncApp| match rx.await {
                 Ok(Ok(())) => {
                     this.update(cx, |app_view, cx| {
-                        let (database, table, filters, dialect) = {
+                        let (database, table, filters, page, dialect) = {
                             let tv = view.read(cx);
                             let dialect = app_view
                                 .connection_manager
@@ -298,6 +325,7 @@ impl AppView {
                                 tv.database.clone(),
                                 tv.table_name.clone(),
                                 tv.active_filters.clone(),
+                                tv.page,
                                 dialect,
                             )
                         };
@@ -308,6 +336,7 @@ impl AppView {
                                 table,
                                 filters,
                                 dialect,
+                                page,
                                 view.clone(),
                                 cx,
                             );
@@ -417,10 +446,12 @@ impl Render for AppView {
                     .flex()
                     .flex_row()
                     .flex_1()
+                    .min_h(px(0.))
                     .child(self.sidebar.clone())
                     .child(
                         div()
                             .flex_1()
+                            .min_h(px(0.))
                             .flex()
                             .flex_col()
                             .child(self.tab_bar.clone())

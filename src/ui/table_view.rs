@@ -3,17 +3,18 @@ use std::collections::HashMap;
 use gpui::prelude::FluentBuilder;
 use gpui::*;
 
+use super::text_field::TextField;
 use crate::db::types::{Column, QueryResult, Row, Value};
 use crate::query::filter::{Filter, FilterOp};
-use super::text_field::TextField;
 
-actions!(table_view, [CommitEdit, CancelEdit, SaveEdits]);
+actions!(table_view, [CommitEdit, CancelEdit, SaveEdits, GoToPage]);
 
 pub fn register_table_view_actions(cx: &mut App) {
     cx.bind_keys([
         KeyBinding::new("enter", CommitEdit, Some("TableView")),
         KeyBinding::new("escape", CancelEdit, Some("TableView")),
         KeyBinding::new("cmd-s", SaveEdits, Some("TableView")),
+        KeyBinding::new("enter", GoToPage, Some("PageJumpField")),
     ]);
 }
 
@@ -34,6 +35,7 @@ pub struct RowUpdate {
 
 pub enum TableViewEvent {
     FiltersChanged,
+    PageChanged,
     SaveChanges(Vec<RowUpdate>),
 }
 
@@ -65,6 +67,11 @@ pub struct TableView {
     editing_cell: Option<(usize, usize)>,
     edit_field: Entity<TextField>,
     save_error: Option<String>,
+
+    // Page jump
+    page_jump_field: Entity<TextField>,
+
+    scroll_handle: ScrollHandle,
 }
 
 impl TableView {
@@ -76,7 +83,7 @@ impl TableView {
             rows: vec![],
             total_rows: None,
             page: 0,
-            page_size: 500,
+            page_size: 100,
             loading: true,
             error: None,
             active_filters: vec![],
@@ -90,12 +97,20 @@ impl TableView {
             editing_cell: None,
             edit_field: cx.new(|cx| TextField::new(cx, "")),
             save_error: None,
+            page_jump_field: cx.new(|cx| TextField::new(cx, "#")),  // page number input
+            scroll_handle: ScrollHandle::new(),
         }
     }
 
-    pub fn set_data(&mut self, result: QueryResult, cx: &mut Context<Self>) {
+    pub fn set_data(
+        &mut self,
+        result: QueryResult,
+        total_rows: Option<u64>,
+        cx: &mut Context<Self>,
+    ) {
         self.columns = result.columns;
         self.rows = result.rows;
+        self.total_rows = total_rows;
         self.loading = false;
         self.error = None;
         // Clear any pending edits — the table has refreshed
@@ -121,7 +136,9 @@ impl TableView {
 
     fn start_editing(&mut self, row: usize, col: usize, cx: &mut Context<Self>) {
         self.commit_edit(cx);
-        let current = self.rows.get(row)
+        let current = self
+            .rows
+            .get(row)
             .and_then(|r| r.get(col))
             .map(|v| match v {
                 Value::Null => String::new(),
@@ -130,7 +147,8 @@ impl TableView {
             .unwrap_or_default();
         self.editing_cell = Some((row, col));
         self.save_error = None;
-        self.edit_field.update(cx, |f, cx| f.set_content(&current, cx));
+        self.edit_field
+            .update(cx, |f, cx| f.set_content(&current, cx));
         cx.notify();
     }
 
@@ -153,7 +171,10 @@ impl TableView {
             return;
         }
 
-        let pk_indices: Vec<usize> = self.columns.iter().enumerate()
+        let pk_indices: Vec<usize> = self
+            .columns
+            .iter()
+            .enumerate()
             .filter(|(_, c)| c.is_primary_key)
             .map(|(i, _)| i)
             .collect();
@@ -164,7 +185,8 @@ impl TableView {
             return;
         }
 
-        let pk_col_names: Vec<String> = pk_indices.iter()
+        let pk_col_names: Vec<String> = pk_indices
+            .iter()
             .map(|&i| self.columns[i].name.clone())
             .collect();
 
@@ -176,11 +198,15 @@ impl TableView {
 
         let mut updates = vec![];
         for (row_idx, col_edits) in by_row {
-            let Some(row) = self.rows.get(row_idx) else { continue };
-            let pk_values: Vec<Value> = pk_indices.iter()
+            let Some(row) = self.rows.get(row_idx) else {
+                continue;
+            };
+            let pk_values: Vec<Value> = pk_indices
+                .iter()
                 .map(|&i| row.get(i).cloned().unwrap_or(Value::Null))
                 .collect();
-            let edits: Vec<CellEdit> = col_edits.into_iter()
+            let edits: Vec<CellEdit> = col_edits
+                .into_iter()
                 .filter_map(|(col_idx, new_value)| {
                     self.columns.get(col_idx).map(|c| CellEdit {
                         column: c.name.clone(),
@@ -214,27 +240,82 @@ impl TableView {
         self.save_changes(cx);
     }
 
+    fn on_go_to_page(&mut self, _: &GoToPage, _: &mut Window, cx: &mut Context<Self>) {
+        self.go_to_page(cx);
+    }
+
     // ── Filters ───────────────────────────────────────────────────────────────
 
+    pub fn go_to_page(&mut self, cx: &mut Context<Self>) {
+        let input = self.page_jump_field.read(cx).content.to_string();
+        let Ok(n) = input.trim().parse::<usize>() else {
+            return;
+        };
+        let n = n.saturating_sub(1); // convert 1-based to 0-based
+        let max_page = self
+            .total_rows
+            .map(|t| (t as usize).saturating_sub(1) / self.page_size)
+            .unwrap_or(0);
+        let target = n.min(max_page);
+        if target != self.page {
+            self.page = target;
+            cx.emit(TableViewEvent::PageChanged);
+        }
+        self.page_jump_field
+            .update(cx, |f, cx| f.set_content("", cx));
+        cx.notify();
+    }
+
+    pub fn go_next_page(&mut self, cx: &mut Context<Self>) {
+        let max_page = self
+            .total_rows
+            .map(|t| (t as usize).saturating_sub(1) / self.page_size)
+            .unwrap_or(0);
+        if self.page < max_page {
+            self.page += 1;
+            cx.emit(TableViewEvent::PageChanged);
+            cx.notify();
+        }
+    }
+
+    pub fn go_prev_page(&mut self, cx: &mut Context<Self>) {
+        if self.page > 0 {
+            self.page -= 1;
+            cx.emit(TableViewEvent::PageChanged);
+            cx.notify();
+        }
+    }
+
     fn add_filter(&mut self, cx: &mut Context<Self>) {
-        let Some(col) = self.columns.get(self.filter_form_column_idx) else { return };
+        let Some(col) = self.columns.get(self.filter_form_column_idx) else {
+            return;
+        };
         let op = FilterOp::all()[self.filter_form_op_idx].clone();
         let value = if op.needs_value() {
             let v = self.filter_form_value.read(cx).content.to_string();
-            if v.is_empty() { return; }
+            if v.is_empty() {
+                return;
+            }
             Some(v)
         } else {
             None
         };
-        self.active_filters.push(Filter { column: col.name.clone(), op, value });
-        self.filter_form_value.update(cx, |f, cx| f.set_content("", cx));
+        self.active_filters.push(Filter {
+            column: col.name.clone(),
+            op,
+            value,
+        });
+        self.filter_form_value
+            .update(cx, |f, cx| f.set_content("", cx));
         self.filter_form_visible = false;
+        self.page = 0;
         cx.emit(TableViewEvent::FiltersChanged);
         cx.notify();
     }
 
     fn remove_filter(&mut self, idx: usize, cx: &mut Context<Self>) {
         self.active_filters.remove(idx);
+        self.page = 0;
         cx.emit(TableViewEvent::FiltersChanged);
         cx.notify();
     }
@@ -247,11 +328,14 @@ impl Render for TableView {
             .on_action(cx.listener(Self::on_commit_edit))
             .on_action(cx.listener(Self::on_cancel_edit))
             .on_action(cx.listener(Self::on_save_edits))
+            .on_action(cx.listener(Self::on_go_to_page))
             .flex()
             .flex_col()
             .size_full()
             .child(self.render_toolbar(cx))
-            .when(self.filter_form_visible, |d| d.child(self.render_filter_form(cx)))
+            .when(self.filter_form_visible, |d| {
+                d.child(self.render_filter_form(cx))
+            })
             .child(self.render_grid(cx))
     }
 }
@@ -259,14 +343,21 @@ impl Render for TableView {
 impl TableView {
     fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let row_info = if let Some(total) = self.total_rows {
-            let end = self.rows.len().min(total as usize);
-            format!("1–{} of {}", end, total)
+            let start = self.page * self.page_size + 1;
+            let end = self.page * self.page_size + self.rows.len();
+            format!("{}\u{2013}{} of {}", start, end, total)
         } else {
             format!("{} rows", self.rows.len())
         };
 
-        let pending_count = self.pending_edits.len()
-            + if self.editing_cell.is_some() { 1 } else { 0 };
+        let on_first_page = self.page == 0;
+        let on_last_page = self
+            .total_rows
+            .map(|t| (self.page + 1) * self.page_size >= t as usize)
+            .unwrap_or(true);
+
+        let pending_count =
+            self.pending_edits.len() + if self.editing_cell.is_some() { 1 } else { 0 };
         let has_pending = pending_count > 0;
 
         let mut toolbar = div()
@@ -399,14 +490,96 @@ impl TableView {
                 );
         }
 
-        button_row = button_row
-            .child(div().flex_1())
-            .child(
-                div()
-                    .text_size(px(11.))
-                    .text_color(rgb(0x6c7086))
-                    .child(row_info),
-            );
+        let has_multiple_pages = self
+            .total_rows
+            .map(|t| t as usize > self.page_size)
+            .unwrap_or(false);
+
+        button_row = button_row.child(div().flex_1());
+
+        // Row info label (always shown when data is loaded)
+        button_row = button_row.child(
+            div()
+                .text_size(px(11.))
+                .text_color(rgb(0x6c7086))
+                .child(row_info),
+        );
+
+        // Pagination controls — only when there is more than one page
+        if has_multiple_pages {
+            button_row = button_row
+                .child(
+                    div()
+                        .id("page-prev-btn")
+                        .bg(if on_first_page {
+                            rgb(0x1e1e2e)
+                        } else {
+                            rgb(0x313244)
+                        })
+                        .rounded(px(4.))
+                        .px(px(8.))
+                        .py(px(3.))
+                        .ml(px(8.))
+                        .text_size(px(12.))
+                        .text_color(if on_first_page {
+                            rgb(0x45475a)
+                        } else {
+                            rgb(0xa6adc8)
+                        })
+                        .when(!on_first_page, |d| d.cursor_pointer())
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.go_prev_page(cx);
+                        }))
+                        .child("‹"),
+                )
+                .child(
+                    div()
+                        .key_context("PageJumpField")
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap_1()
+                        .child(div().w(px(64.)).overflow_hidden().child(self.page_jump_field.clone()))
+                        .child(
+                            div()
+                                .id("page-go-btn")
+                                .bg(rgb(0x313244))
+                                .rounded(px(4.))
+                                .px(px(8.))
+                                .py(px(3.))
+                                .text_size(px(11.))
+                                .text_color(rgb(0xa6adc8))
+                                .cursor_pointer()
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.go_to_page(cx);
+                                }))
+                                .child("Go"),
+                        ),
+                )
+                .child(
+                    div()
+                        .id("page-next-btn")
+                        .bg(if on_last_page {
+                            rgb(0x1e1e2e)
+                        } else {
+                            rgb(0x313244)
+                        })
+                        .rounded(px(4.))
+                        .px(px(8.))
+                        .py(px(3.))
+                        .text_size(px(12.))
+                        .text_color(if on_last_page {
+                            rgb(0x45475a)
+                        } else {
+                            rgb(0xa6adc8)
+                        })
+                        .when(!on_last_page, |d| d.cursor_pointer())
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.go_next_page(cx);
+                        }))
+                        .child("›"),
+                );
+        }
 
         toolbar.child(button_row)
     }
@@ -414,7 +587,9 @@ impl TableView {
     fn render_filter_form(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let ops = FilterOp::all();
         let selected_op = &ops[self.filter_form_op_idx];
-        let col_name = self.columns.get(self.filter_form_column_idx)
+        let col_name = self
+            .columns
+            .get(self.filter_form_column_idx)
             .map(|c| c.name.clone())
             .unwrap_or_else(|| "—".to_string());
 
@@ -454,7 +629,11 @@ impl TableView {
                     cx.notify();
                 }))
                 .child(col_name)
-                .child(div().text_size(px(10.)).child(if col_open { "▲" } else { "▼" })),
+                .child(
+                    div()
+                        .text_size(px(10.))
+                        .child(if col_open { "▲" } else { "▼" }),
+                ),
         );
         if col_open {
             let mut list = div()
@@ -511,7 +690,11 @@ impl TableView {
                     cx.notify();
                 }))
                 .child(selected_op.label())
-                .child(div().text_size(px(10.)).child(if op_open { "▲" } else { "▼" })),
+                .child(
+                    div()
+                        .text_size(px(10.))
+                        .child(if op_open { "▲" } else { "▼" }),
+                ),
         );
         if op_open {
             let mut list = div()
@@ -563,7 +746,9 @@ impl TableView {
                     .py(px(6.))
                     .text_size(px(12.))
                     .cursor_pointer()
-                    .on_click(cx.listener(|this, _, _, cx| { this.add_filter(cx); }))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.add_filter(cx);
+                    }))
                     .child("Add"),
             )
             .child(
@@ -623,8 +808,10 @@ impl TableView {
             .flex()
             .flex_col()
             .flex_1()
+            .min_h(px(0.))
             .id("table-view-grid")
-            .overflow_y_scroll();
+            .overflow_y_scroll()
+            .track_scroll(&self.scroll_handle);
 
         // Header
         let mut header = div()
@@ -651,7 +838,11 @@ impl TableView {
 
         // Rows
         for (row_idx, row) in self.rows.iter().enumerate() {
-            let bg = if row_idx % 2 == 0 { rgb(0x181825) } else { rgb(0x1e1e2e) };
+            let bg = if row_idx % 2 == 0 {
+                rgb(0x181825)
+            } else {
+                rgb(0x1e1e2e)
+            };
             let mut row_el = div()
                 .flex()
                 .flex_row()
@@ -673,8 +864,7 @@ impl TableView {
                         .child(self.edit_field.clone())
                         .into_any_element()
                 } else {
-                    let display = pending_value.clone()
-                        .unwrap_or_else(|| val.to_string());
+                    let display = pending_value.clone().unwrap_or_else(|| val.to_string());
                     let color = if pending_value.is_some() {
                         rgb(0xf9e2af) // amber — pending change
                     } else {
@@ -687,7 +877,9 @@ impl TableView {
                         }
                     };
                     div()
-                        .id(ElementId::Integer(200000 + row_idx as u64 * 500 + col_idx as u64))
+                        .id(ElementId::Integer(
+                            200000 + row_idx as u64 * 500 + col_idx as u64,
+                        ))
                         .w(px(150.))
                         .flex_shrink_0()
                         .px(px(12.))

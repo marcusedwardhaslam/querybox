@@ -8,6 +8,7 @@ pub struct SchemaView {
     pub columns: Vec<Column>,
     pub indexes: Vec<Index>,
     pub loading: bool,
+    scroll_handle: ScrollHandle,
 }
 
 impl SchemaView {
@@ -18,6 +19,7 @@ impl SchemaView {
             columns: vec![],
             indexes: vec![],
             loading: true,
+            scroll_handle: ScrollHandle::new(),
         }
     }
 
@@ -52,6 +54,7 @@ impl Render for SchemaView {
             .size_full()
             .id("schema-view")
             .overflow_y_scroll()
+            .track_scroll(&self.scroll_handle)
             .p(px(16.))
             .gap_4()
             .child(self.render_columns_section())

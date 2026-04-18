@@ -2,9 +2,9 @@ use gpui::prelude::FluentBuilder;
 use gpui::*;
 use std::sync::Arc;
 
-use crate::db::{DatabaseDriver, types::QueryResult, types::Value};
-use crate::query::history::QueryHistory;
 use super::sql_editor::SqlEditor;
+use crate::db::{types::QueryResult, types::Value, DatabaseDriver};
+use crate::query::history::QueryHistory;
 
 pub struct EditorView {
     pub result: Option<QueryResult>,
@@ -14,6 +14,7 @@ pub struct EditorView {
     editor: Entity<SqlEditor>,
     driver: Option<Arc<dyn DatabaseDriver>>,
     database: Option<String>,
+    scroll_handle: ScrollHandle,
 }
 
 impl EditorView {
@@ -30,6 +31,7 @@ impl EditorView {
             editor: cx.new(|cx| SqlEditor::new(cx)),
             driver,
             database,
+            scroll_handle: ScrollHandle::new(),
         }
     }
 
@@ -54,7 +56,9 @@ impl EditorView {
         if sql.trim().is_empty() {
             return;
         }
-        let Some(driver) = self.driver.clone() else { return };
+        let Some(driver) = self.driver.clone() else {
+            return;
+        };
         self.running = true;
         self.error = None;
         self.result = None;
@@ -64,23 +68,29 @@ impl EditorView {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<QueryResult, String>>();
         crate::db_runtime().spawn(async move {
             match driver.query_in(database.as_deref(), &sql, &[]).await {
-                Ok(result) => { tx.send(Ok(result)).ok(); }
-                Err(e) => { tx.send(Err(e.to_string())).ok(); }
+                Ok(result) => {
+                    tx.send(Ok(result)).ok();
+                }
+                Err(e) => {
+                    tx.send(Err(e.to_string())).ok();
+                }
             }
         });
 
         let sql_clone = self.editor.read(cx).content.to_string();
-        cx.spawn(async move |this: WeakEntity<EditorView>, cx: &mut AsyncApp| {
-            match rx.await {
+        cx.spawn(
+            async move |this: WeakEntity<EditorView>, cx: &mut AsyncApp| match rx.await {
                 Ok(Ok(result)) => {
-                    this.update(cx, |ev, cx| ev.set_result(sql_clone, result, cx)).ok();
+                    this.update(cx, |ev, cx| ev.set_result(sql_clone, result, cx))
+                        .ok();
                 }
                 Ok(Err(e)) => {
-                    this.update(cx, |ev, cx| ev.set_error(sql_clone, e, cx)).ok();
+                    this.update(cx, |ev, cx| ev.set_error(sql_clone, e, cx))
+                        .ok();
                 }
                 Err(_) => {}
-            }
-        })
+            },
+        )
         .detach();
     }
 }
@@ -119,7 +129,11 @@ impl EditorView {
                     .child(
                         div()
                             .id("run-btn")
-                            .bg(if is_running { rgb(0x45475a) } else { rgb(0xa6e3a1) })
+                            .bg(if is_running {
+                                rgb(0x45475a)
+                            } else {
+                                rgb(0xa6e3a1)
+                            })
                             .text_color(rgb(0x1e1e2e))
                             .rounded(px(4.))
                             .px(px(12.))
@@ -164,12 +178,7 @@ impl EditorView {
                         )
                     }),
             )
-            .child(
-                div()
-                    .flex_1()
-                    .bg(rgb(0x181825))
-                    .child(self.editor.clone()),
-            )
+            .child(div().flex_1().bg(rgb(0x181825)).child(self.editor.clone()))
     }
 
     fn render_results_pane(&self) -> impl IntoElement {
@@ -211,7 +220,8 @@ impl EditorView {
                 .flex()
                 .flex_col()
                 .id("results-grid")
-                .overflow_y_scroll();
+                .overflow_y_scroll()
+                .track_scroll(&self.scroll_handle);
 
             let mut header = div()
                 .flex()
@@ -237,7 +247,11 @@ impl EditorView {
             grid = grid.child(header);
 
             for (row_idx, row) in result.rows.iter().enumerate() {
-                let bg = if row_idx % 2 == 0 { rgb(0x181825) } else { rgb(0x1e1e2e) };
+                let bg = if row_idx % 2 == 0 {
+                    rgb(0x181825)
+                } else {
+                    rgb(0x1e1e2e)
+                };
                 let mut row_el = div()
                     .flex()
                     .flex_row()
@@ -278,7 +292,12 @@ impl EditorView {
                         .bg(rgb(0x1e1e2e))
                         .border_b_1()
                         .border_color(rgb(0x333333))
-                        .child(div().text_size(px(11.)).text_color(rgb(0xa6e3a1)).child(info))
+                        .child(
+                            div()
+                                .text_size(px(11.))
+                                .text_color(rgb(0xa6e3a1))
+                                .child(info),
+                        )
                         .child(div().flex_1()),
                 )
                 .child(grid)
@@ -287,7 +306,11 @@ impl EditorView {
 
         pane.justify_center()
             .items_center()
-            .child(div().text_color(rgb(0x6c7086)).child("Run a query to see results"))
+            .child(
+                div()
+                    .text_color(rgb(0x6c7086))
+                    .child("Run a query to see results"),
+            )
             .into_any_element()
     }
 }
