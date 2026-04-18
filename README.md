@@ -2,7 +2,7 @@
 
 QueryBox is a free, modern SQL GUI for MySQL. Browse, edit, and query your databases with a beautiful native interface - no subscriptions, no limits
 
-![QueryBox screenshot](docs/images/screenshot.png)
+![QueryBox screenshot](https://github.com/marcusedwardhaslam/querybox/blob/main/docs/images/querybox0.1.png)
 
 ## Features
 
