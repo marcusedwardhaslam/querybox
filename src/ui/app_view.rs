@@ -382,25 +382,26 @@ impl AppView {
 
 impl Render for AppView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let tab_bar = self.tab_bar.read(cx);
-        let active_tab = tab_bar.active_tab;
-        let sidebar = self.sidebar.read(cx);
-
-        let title = {
-            let conn_name = sidebar.connection_name.clone();
-            match conn_name {
+        let (active_tab, title) = {
+            let tab_bar = self.tab_bar.read(cx);
+            let sidebar = self.sidebar.read(cx);
+            let active_tab = tab_bar.active_tab;
+            let title = match &sidebar.connection_name {
                 None => "Querybox - Configuring a connection".to_string(),
                 Some(name) => {
                     let suffix = active_tab
                         .and_then(|id| tab_bar.tabs.iter().find(|t| t.id == id))
                         .map(|tab| match &tab.kind {
-                            super::tab_bar::TabKind::Table { table, .. } => format!(" - {}", table),
+                            super::tab_bar::TabKind::Table { table, .. } => {
+                                format!(" - {}", table)
+                            }
                             super::tab_bar::TabKind::Query { .. } => " - New Query".to_string(),
                         })
                         .unwrap_or_default();
                     format!("Querybox - {}{}", name, suffix)
                 }
-            }
+            };
+            (active_tab, title)
         };
         window.set_window_title(&title);
 
