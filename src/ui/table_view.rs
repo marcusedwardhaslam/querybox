@@ -336,9 +336,6 @@ impl TableView {
             table: self.table_name.clone(),
             column_values,
         }));
-        self.new_row_active = false;
-        self.new_row_edits.clear();
-        self.editing_new_row_col = None;
         cx.notify();
     }
 
