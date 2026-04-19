@@ -149,12 +149,20 @@ impl TableView {
         self.new_row_active = false;
         self.new_row_edits.clear();
         self.editing_new_row_col = None;
+        self.new_row_insert_error = None;
+        self.new_row_dirty = false;
         cx.notify();
     }
 
     pub fn set_error(&mut self, error: String, cx: &mut Context<Self>) {
         self.error = Some(error);
         self.loading = false;
+        cx.notify();
+    }
+
+    pub fn set_insert_error(&mut self, error: String, cx: &mut Context<Self>) {
+        self.new_row_insert_error = Some(error);
+        self.new_row_dirty = false;
         cx.notify();
     }
 
@@ -221,6 +229,8 @@ impl TableView {
         self.new_row_active = false;
         self.new_row_edits.clear();
         self.editing_new_row_col = None;
+        self.new_row_insert_error = None;
+        self.new_row_dirty = false;
         cx.notify();
     }
 
