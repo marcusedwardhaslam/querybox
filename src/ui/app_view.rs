@@ -10,7 +10,7 @@ use super::connection_dialog::{ConnectionDialog, ConnectionDialogEvent};
 use super::editor_view::EditorView;
 use super::sidebar::{Sidebar, SidebarEvent};
 use super::tab_bar::TabBar;
-use super::table_view::{RowUpdate, TableView, TableViewEvent};
+use super::table_view::{NewRowInsert, RowUpdate, TableView, TableViewEvent};
 
 pub struct AppView {
     focus_handle: FocusHandle,
@@ -202,7 +202,12 @@ impl AppView {
                         AppView::save_and_reload(driver, updates, view2.clone(), cx);
                     }
                 }
-                TableViewEvent::InsertRow(_) => {}
+                TableViewEvent::InsertRow(insert) => {
+                    let insert = insert.clone();
+                    if let Some(driver) = this.connection_manager.driver_arc() {
+                        AppView::execute_insert(driver, insert, view2.clone(), cx);
+                    }
+                }
                 TableViewEvent::NavigateToFk {
                     database,
                     table,
@@ -358,6 +363,81 @@ impl AppView {
                 }
             }
             tx.send(Ok(())).ok();
+        });
+
+        cx.spawn(
+            async move |this: WeakEntity<AppView>, cx: &mut AsyncApp| match rx.await {
+                Ok(Ok(())) => {
+                    this.update(cx, |app_view, cx| {
+                        let (database, table, filters, page, dialect) = {
+                            let tv = view.read(cx);
+                            let dialect = app_view
+                                .connection_manager
+                                .driver()
+                                .map(|d| d.dialect())
+                                .unwrap_or(Dialect::MySql);
+                            (
+                                tv.database.clone(),
+                                tv.table_name.clone(),
+                                tv.active_filters.clone(),
+                                tv.page,
+                                dialect,
+                            )
+                        };
+                        if let Some(driver) = app_view.connection_manager.driver_arc() {
+                            AppView::query_table(
+                                driver,
+                                database,
+                                table,
+                                filters,
+                                dialect,
+                                page,
+                                view.clone(),
+                                cx,
+                            );
+                        }
+                    })
+                    .ok();
+                }
+                Ok(Err(e)) => {
+                    view.update(cx, |v, cx| v.set_error(e, cx));
+                }
+                Err(_) => {}
+            },
+        )
+        .detach();
+    }
+
+    fn execute_insert(
+        driver: Arc<dyn DatabaseDriver>,
+        insert: NewRowInsert,
+        view: Entity<TableView>,
+        cx: &mut Context<Self>,
+    ) {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
+        crate::db_runtime().spawn(async move {
+            let col_names: Vec<String> = insert
+                .column_values
+                .iter()
+                .map(|(col, _)| format!("`{}`", col))
+                .collect();
+            let placeholders: Vec<&str> = insert.column_values.iter().map(|_| "?").collect();
+            let sql = format!(
+                "INSERT INTO `{}`.`{}` ({}) VALUES ({})",
+                insert.database,
+                insert.table,
+                col_names.join(", "),
+                placeholders.join(", "),
+            );
+            let params: Vec<Value> = insert.column_values.into_iter().map(|(_, v)| v).collect();
+            match driver.execute(&sql, &params).await {
+                Ok(_) => {
+                    tx.send(Ok(())).ok();
+                }
+                Err(e) => {
+                    tx.send(Err(e.to_string())).ok();
+                }
+            }
         });
 
         cx.spawn(
