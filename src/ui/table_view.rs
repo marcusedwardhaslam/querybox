@@ -7,7 +7,7 @@ use super::text_field::TextField;
 use crate::db::types::{Column, QueryResult, Row, Value};
 use crate::query::filter::{Filter, FilterOp};
 
-actions!(table_view, [CommitEdit, CancelEdit, SaveEdits, GoToPage]);
+actions!(table_view, [CommitEdit, CancelEdit, SaveEdits, GoToPage, InsertNewRow]);
 
 pub fn register_table_view_actions(cx: &mut App) {
     cx.bind_keys([
@@ -15,6 +15,7 @@ pub fn register_table_view_actions(cx: &mut App) {
         KeyBinding::new("escape", CancelEdit, Some("TableView")),
         KeyBinding::new("cmd-s", SaveEdits, Some("TableView")),
         KeyBinding::new("enter", GoToPage, Some("PageJumpField")),
+        KeyBinding::new("cmd-return", InsertNewRow, Some("TableView")),
     ]);
 }
 
@@ -74,6 +75,12 @@ pub struct TableView {
     edit_field: Entity<TextField>,
     save_error: Option<String>,
 
+    // New row insert
+    #[allow(dead_code)] // read in Task 7 when render_grid shows the new-row form
+    new_row_active: bool,
+    new_row_edits: HashMap<usize, String>,
+    editing_new_row_col: Option<usize>,
+
     // Page jump
     page_jump_field: Entity<TextField>,
 
@@ -104,6 +111,9 @@ impl TableView {
             editing_cell: None,
             edit_field: cx.new(|cx| TextField::new(cx, "")),
             save_error: None,
+            new_row_active: false,
+            new_row_edits: HashMap::new(),
+            editing_new_row_col: None,
             page_jump_field: cx.new(|cx| TextField::new(cx, "#")), // page number input
             scroll_handle: ScrollHandle::new(),
             foreign_keys: vec![],
@@ -153,6 +163,7 @@ impl TableView {
 
     fn start_editing(&mut self, row: usize, col: usize, cx: &mut Context<Self>) {
         self.commit_edit(cx);
+        self.commit_new_row_edit(cx);
         let current = self
             .rows
             .get(row)
@@ -179,6 +190,24 @@ impl TableView {
 
     fn cancel_edit(&mut self, cx: &mut Context<Self>) {
         self.editing_cell = None;
+        cx.notify();
+    }
+
+    fn commit_new_row_edit(&mut self, cx: &mut Context<Self>) {
+        if let Some(col_idx) = self.editing_new_row_col.take() {
+            let value = self.edit_field.read(cx).content.to_string();
+            if !value.is_empty() {
+                self.new_row_edits.insert(col_idx, value);
+            }
+            cx.notify();
+        }
+    }
+
+    #[allow(dead_code)] // called in Task 7 from the new-row toolbar cancel button
+    fn cancel_new_row(&mut self, cx: &mut Context<Self>) {
+        self.new_row_active = false;
+        self.new_row_edits.clear();
+        self.editing_new_row_col = None;
         cx.notify();
     }
 
@@ -260,6 +289,12 @@ impl TableView {
     fn on_go_to_page(&mut self, _: &GoToPage, _: &mut Window, cx: &mut Context<Self>) {
         self.go_to_page(cx);
     }
+
+    fn on_insert_new_row(&mut self, _: &InsertNewRow, _: &mut Window, cx: &mut Context<Self>) {
+        self.save_new_row(cx);
+    }
+
+    fn save_new_row(&mut self, _cx: &mut Context<Self>) {}
 
     // ── Filters ───────────────────────────────────────────────────────────────
 
@@ -346,6 +381,7 @@ impl Render for TableView {
             .on_action(cx.listener(Self::on_cancel_edit))
             .on_action(cx.listener(Self::on_save_edits))
             .on_action(cx.listener(Self::on_go_to_page))
+            .on_action(cx.listener(Self::on_insert_new_row))
             .flex()
             .flex_col()
             .size_full()
