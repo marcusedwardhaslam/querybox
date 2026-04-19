@@ -18,10 +18,14 @@ impl Drop for MySqlDriver {
             // Pool destructor needs a tokio context. Ensure one is always available.
             match tokio::runtime::Handle::try_current() {
                 Ok(handle) => {
-                    handle.spawn(async move { pool.disconnect().await.ok(); });
+                    handle.spawn(async move {
+                        pool.disconnect().await.ok();
+                    });
                 }
                 Err(_) => {
-                    crate::db_runtime().block_on(async move { pool.disconnect().await.ok(); });
+                    crate::db_runtime().block_on(async move {
+                        pool.disconnect().await.ok();
+                    });
                 }
             }
         }
@@ -234,7 +238,12 @@ async fn exec_query(conn: &mut Conn, sql: &str, params: &[Value]) -> Result<Quer
 
     let rows: Vec<Row> = result.iter().map(mysql_row_to_values).collect();
 
-    Ok(QueryResult { columns, rows, affected_rows: 0, execution_time_ms })
+    Ok(QueryResult {
+        columns,
+        rows,
+        affected_rows: 0,
+        execution_time_ms,
+    })
 }
 
 fn values_to_mysql_params(params: &[Value]) -> mysql_async::Params {

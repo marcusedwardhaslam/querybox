@@ -98,7 +98,7 @@ impl TableView {
             editing_cell: None,
             edit_field: cx.new(|cx| TextField::new(cx, "")),
             save_error: None,
-            page_jump_field: cx.new(|cx| TextField::new(cx, "#")),  // page number input
+            page_jump_field: cx.new(|cx| TextField::new(cx, "#")), // page number input
             scroll_handle: ScrollHandle::new(),
             foreign_keys: vec![],
         }
@@ -128,7 +128,11 @@ impl TableView {
         cx.notify();
     }
 
-    pub fn set_foreign_keys(&mut self, fks: Vec<crate::db::types::ForeignKey>, cx: &mut Context<Self>) {
+    pub fn set_foreign_keys(
+        &mut self,
+        fks: Vec<crate::db::types::ForeignKey>,
+        cx: &mut Context<Self>,
+    ) {
         self.foreign_keys = fks;
         cx.notify();
     }
@@ -546,7 +550,12 @@ impl TableView {
                         .flex_row()
                         .items_center()
                         .gap_1()
-                        .child(div().w(px(64.)).overflow_hidden().child(self.page_jump_field.clone()))
+                        .child(
+                            div()
+                                .w(px(64.))
+                                .overflow_hidden()
+                                .child(self.page_jump_field.clone()),
+                        )
                         .child(
                             div()
                                 .id("page-go-btn")

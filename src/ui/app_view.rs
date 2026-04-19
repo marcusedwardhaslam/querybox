@@ -203,7 +203,16 @@ impl AppView {
             .driver()
             .map(|d| d.dialect())
             .unwrap_or(Dialect::MySql);
-        AppView::query_table(driver.clone(), database.clone(), table.clone(), vec![], dialect, 0, view.clone(), cx);
+        AppView::query_table(
+            driver.clone(),
+            database.clone(),
+            table.clone(),
+            vec![],
+            dialect,
+            0,
+            view.clone(),
+            cx,
+        );
         AppView::load_foreign_keys(driver, database, table, view, cx);
     }
 
@@ -395,8 +404,12 @@ impl AppView {
             tokio::sync::oneshot::channel::<Result<Vec<crate::db::types::ForeignKey>, String>>();
         crate::db_runtime().spawn(async move {
             match driver.foreign_keys(&database, &table).await {
-                Ok(fks) => { tx.send(Ok(fks)).ok(); }
-                Err(e) => { tx.send(Err(e.to_string())).ok(); }
+                Ok(fks) => {
+                    tx.send(Ok(fks)).ok();
+                }
+                Err(e) => {
+                    tx.send(Err(e.to_string())).ok();
+                }
             }
         });
         cx.spawn(async move |_this: WeakEntity<AppView>, cx: &mut AsyncApp| {

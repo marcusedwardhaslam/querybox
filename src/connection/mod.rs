@@ -3,7 +3,9 @@ pub mod storage;
 
 use std::sync::Arc;
 
-use crate::db::{mysql::MySqlDriver, postgres::PostgresDriver, sqlite::SqliteDriver, DatabaseDriver, DbError};
+use crate::db::{
+    mysql::MySqlDriver, postgres::PostgresDriver, sqlite::SqliteDriver, DatabaseDriver, DbError,
+};
 use profile::{ConnectionProfile, DatabaseEngine};
 
 pub struct ConnectionManager {
@@ -53,10 +55,16 @@ impl ConnectionManager {
         Ok(())
     }
 
-    pub async fn connect_new(&mut self, profile: ConnectionProfile, password: &str) -> Result<(), DbError> {
+    pub async fn connect_new(
+        &mut self,
+        profile: ConnectionProfile,
+        password: &str,
+    ) -> Result<(), DbError> {
         let driver: Arc<dyn DatabaseDriver> = match profile.engine {
             DatabaseEngine::MySql => Arc::new(MySqlDriver::connect(&profile, password).await?),
-            DatabaseEngine::PostgreSql => Arc::new(PostgresDriver::connect(&profile, password).await?),
+            DatabaseEngine::PostgreSql => {
+                Arc::new(PostgresDriver::connect(&profile, password).await?)
+            }
             DatabaseEngine::Sqlite => Arc::new(SqliteDriver::connect(&profile, password).await?),
         };
         self.set_active_driver(driver, profile);
@@ -64,9 +72,9 @@ impl ConnectionManager {
     }
 
     pub fn active_info(&self) -> Option<(String, String)> {
-        self.active_profile.as_ref().map(|p| {
-            (p.name.clone(), format!("{} • {}", p.engine, p.host))
-        })
+        self.active_profile
+            .as_ref()
+            .map(|p| (p.name.clone(), format!("{} • {}", p.engine, p.host)))
     }
 
     #[allow(dead_code)]
@@ -77,14 +85,8 @@ impl ConnectionManager {
 
 pub async fn test_connect(profile: &ConnectionProfile, password: &str) -> Result<(), DbError> {
     match profile.engine {
-        DatabaseEngine::MySql => {
-            MySqlDriver::connect(profile, password).await.map(|_| ())
-        }
-        DatabaseEngine::PostgreSql => {
-            PostgresDriver::connect(profile, password).await.map(|_| ())
-        }
-        DatabaseEngine::Sqlite => {
-            SqliteDriver::connect(profile, password).await.map(|_| ())
-        }
+        DatabaseEngine::MySql => MySqlDriver::connect(profile, password).await.map(|_| ()),
+        DatabaseEngine::PostgreSql => PostgresDriver::connect(profile, password).await.map(|_| ()),
+        DatabaseEngine::Sqlite => SqliteDriver::connect(profile, password).await.map(|_| ()),
     }
 }
