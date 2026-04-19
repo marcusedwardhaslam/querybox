@@ -38,13 +38,9 @@ pub enum TableViewEvent {
     PageChanged,
     SaveChanges(Vec<RowUpdate>),
     NavigateToFk {
-        #[allow(dead_code)]
         database: String,
-        #[allow(dead_code)]
         table: String,
-        #[allow(dead_code)]
         column: String,
-        #[allow(dead_code)]
         value: crate::db::types::Value,
     },
 }
