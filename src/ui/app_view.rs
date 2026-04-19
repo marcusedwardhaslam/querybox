@@ -475,9 +475,13 @@ impl AppView {
                     .ok();
                 }
                 Ok(Err(e)) => {
-                    view.update(cx, |v, cx| v.set_error(e, cx));
+                    view.update(cx, |v, cx| v.set_insert_error(e, cx));
                 }
-                Err(_) => {}
+                Err(_) => {
+                    view.update(cx, |v, cx| {
+                        v.set_insert_error("Insert failed: connection lost".to_string(), cx);
+                    });
+                }
             },
         )
         .detach();
