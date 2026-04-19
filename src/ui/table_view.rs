@@ -36,11 +36,8 @@ pub struct RowUpdate {
 
 #[derive(Clone, Debug)]
 pub struct NewRowInsert {
-    #[allow(dead_code)] // consumed by Task 8's AppView handler
     pub database: String,
-    #[allow(dead_code)] // consumed by Task 8's AppView handler
     pub table: String,
-    #[allow(dead_code)] // consumed by Task 8's AppView handler
     pub column_values: Vec<(String, crate::db::types::Value)>,
 }
 
@@ -48,7 +45,6 @@ pub enum TableViewEvent {
     FiltersChanged,
     PageChanged,
     SaveChanges(Vec<RowUpdate>),
-    #[allow(dead_code)] // payload consumed by Task 8's AppView handler
     InsertRow(NewRowInsert),
     NavigateToFk {
         database: String,

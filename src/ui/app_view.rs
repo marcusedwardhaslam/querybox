@@ -337,17 +337,17 @@ impl AppView {
                 let set_clauses: Vec<String> = update
                     .edits
                     .iter()
-                    .map(|e| format!("`{}` = ?", e.column))
+                    .map(|e| format!("`{}` = ?", e.column.replace('`', "``")))
                     .collect();
                 let where_clauses: Vec<String> = update
                     .pk_columns
                     .iter()
-                    .map(|pk| format!("`{}` = ?", pk))
+                    .map(|pk| format!("`{}` = ?", pk.replace('`', "``")))
                     .collect();
                 let sql = format!(
                     "UPDATE `{}`.`{}` SET {} WHERE {}",
-                    update.database,
-                    update.table,
+                    update.database.replace('`', "``"),
+                    update.table.replace('`', "``"),
                     set_clauses.join(", "),
                     where_clauses.join(" AND "),
                 );
@@ -419,13 +419,13 @@ impl AppView {
             let col_names: Vec<String> = insert
                 .column_values
                 .iter()
-                .map(|(col, _)| format!("`{}`", col))
+                .map(|(col, _)| format!("`{}`", col.replace('`', "``")))
                 .collect();
             let placeholders: Vec<&str> = insert.column_values.iter().map(|_| "?").collect();
             let sql = format!(
                 "INSERT INTO `{}`.`{}` ({}) VALUES ({})",
-                insert.database,
-                insert.table,
+                insert.database.replace('`', "``"),
+                insert.table.replace('`', "``"),
                 col_names.join(", "),
                 placeholders.join(", "),
             );
