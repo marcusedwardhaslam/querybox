@@ -87,6 +87,8 @@ pub struct TableView {
     new_row_active: bool,
     new_row_edits: HashMap<usize, String>,
     editing_new_row_col: Option<usize>,
+    new_row_insert_error: Option<String>,
+    new_row_dirty: bool,
 
     // Page jump
     page_jump_field: Entity<TextField>,
@@ -121,6 +123,8 @@ impl TableView {
             new_row_active: false,
             new_row_edits: HashMap::new(),
             editing_new_row_col: None,
+            new_row_insert_error: None,
+            new_row_dirty: false,
             page_jump_field: cx.new(|cx| TextField::new(cx, "#")), // page number input
             scroll_handle: ScrollHandle::new(),
             foreign_keys: vec![],
