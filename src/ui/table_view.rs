@@ -34,10 +34,22 @@ pub struct RowUpdate {
     pub edits: Vec<CellEdit>,
 }
 
+#[derive(Clone, Debug)]
+pub struct NewRowInsert {
+    #[allow(dead_code)] // consumed by Task 8's AppView handler
+    pub database: String,
+    #[allow(dead_code)] // consumed by Task 8's AppView handler
+    pub table: String,
+    #[allow(dead_code)] // consumed by Task 8's AppView handler
+    pub column_values: Vec<(String, crate::db::types::Value)>,
+}
+
 pub enum TableViewEvent {
     FiltersChanged,
     PageChanged,
     SaveChanges(Vec<RowUpdate>),
+    #[allow(dead_code)] // payload consumed by Task 8's AppView handler
+    InsertRow(NewRowInsert),
     NavigateToFk {
         database: String,
         table: String,
@@ -76,7 +88,6 @@ pub struct TableView {
     save_error: Option<String>,
 
     // New row insert
-    #[allow(dead_code)] // read in Task 7 when render_grid shows the new-row form
     new_row_active: bool,
     new_row_edits: HashMap<usize, String>,
     editing_new_row_col: Option<usize>,
@@ -203,7 +214,6 @@ impl TableView {
         }
     }
 
-    #[allow(dead_code)] // called in Task 7 from the new-row toolbar cancel button
     fn cancel_new_row(&mut self, cx: &mut Context<Self>) {
         self.new_row_active = false;
         self.new_row_edits.clear();
@@ -294,7 +304,30 @@ impl TableView {
         self.save_new_row(cx);
     }
 
-    fn save_new_row(&mut self, _cx: &mut Context<Self>) {}
+    fn save_new_row(&mut self, cx: &mut Context<Self>) {
+        self.commit_new_row_edit(cx);
+        if self.new_row_edits.is_empty() {
+            return;
+        }
+        let column_values: Vec<(String, crate::db::types::Value)> = self
+            .new_row_edits
+            .iter()
+            .filter_map(|(&col_idx, value)| {
+                self.columns
+                    .get(col_idx)
+                    .map(|col| (col.name.clone(), crate::db::types::Value::String(value.clone())))
+            })
+            .collect();
+        cx.emit(TableViewEvent::InsertRow(NewRowInsert {
+            database: self.database.clone(),
+            table: self.table_name.clone(),
+            column_values,
+        }));
+        self.new_row_active = false;
+        self.new_row_edits.clear();
+        self.editing_new_row_col = None;
+        cx.notify();
+    }
 
     // ── Filters ───────────────────────────────────────────────────────────────
 
@@ -498,6 +531,31 @@ impl TableView {
                         cx.notify();
                     }))
                     .child("+ Filter"),
+            )
+            .child(
+                div()
+                    .id("new-row-btn")
+                    .bg(if self.new_row_active { rgb(0xa6e3a1) } else { rgb(0x313244) })
+                    .text_color(if self.new_row_active { rgb(0x1e1e2e) } else { rgb(0xa6adc8) })
+                    .font_weight(if self.new_row_active {
+                        FontWeight::SEMIBOLD
+                    } else {
+                        FontWeight::NORMAL
+                    })
+                    .rounded(px(4.))
+                    .px(px(10.))
+                    .py(px(4.))
+                    .text_size(px(11.))
+                    .cursor_pointer()
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        if this.new_row_active {
+                            this.cancel_new_row(cx);
+                        } else {
+                            this.new_row_active = true;
+                            cx.notify();
+                        }
+                    }))
+                    .child("+ New Row"),
             );
 
         if has_pending {
@@ -1012,6 +1070,115 @@ impl TableView {
             }
 
             table = table.child(row_el);
+        }
+
+        if self.new_row_active {
+            let mut new_row_el = div()
+                .flex()
+                .flex_row()
+                .bg(rgba(0xa6e3a115u32))
+                .border_b_1()
+                .border_color(rgb(0xa6e3a1));
+
+            for (col_idx, col) in self.columns.iter().enumerate() {
+                let is_auto = col.is_primary_key && col.extra.contains("auto_increment");
+                let is_editing_this = self.editing_new_row_col == Some(col_idx);
+                let pending = self.new_row_edits.get(&col_idx).cloned();
+
+                let cell: AnyElement = if is_auto {
+                    div()
+                        .w(px(150.))
+                        .flex_shrink_0()
+                        .px(px(12.))
+                        .py(px(6.))
+                        .text_size(px(12.))
+                        .text_color(rgb(0x45475a))
+                        .child("auto")
+                        .into_any_element()
+                } else if is_editing_this {
+                    div()
+                        .w(px(150.))
+                        .flex_shrink_0()
+                        .px(px(4.))
+                        .py(px(2.))
+                        .bg(rgba(0xa6e3a122u32))
+                        .child(self.edit_field.clone())
+                        .into_any_element()
+                } else {
+                    let display = pending.clone().unwrap_or_else(|| col.name.clone());
+                    let color = if pending.is_some() {
+                        rgb(0xa6e3a1)
+                    } else {
+                        rgb(0x45475a)
+                    };
+                    div()
+                        .id(ElementId::Name(format!("new-row-col-{}", col_idx).into()))
+                        .w(px(150.))
+                        .flex_shrink_0()
+                        .px(px(12.))
+                        .py(px(6.))
+                        .text_size(px(12.))
+                        .text_color(color)
+                        .overflow_hidden()
+                        .cursor(CursorStyle::IBeam)
+                        .on_click(cx.listener(move |this, _event: &ClickEvent, window, cx| {
+                            this.commit_edit(cx);
+                            this.commit_new_row_edit(cx);
+                            this.editing_new_row_col = Some(col_idx);
+                            let val = this.new_row_edits.get(&col_idx).cloned().unwrap_or_default();
+                            this.edit_field.update(cx, |f, cx| f.set_content(&val, cx));
+                            let fh = this.edit_field.read(cx).focus_handle.clone();
+                            window.focus(&fh, cx);
+                            cx.notify();
+                        }))
+                        .child(display)
+                        .into_any_element()
+                };
+
+                new_row_el = new_row_el.child(cell);
+            }
+
+            new_row_el = new_row_el.child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap_1()
+                    .px(px(8.))
+                    .child(
+                        div()
+                            .id("new-row-insert-btn")
+                            .bg(rgb(0xa6e3a1))
+                            .text_color(rgb(0x1e1e2e))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .rounded(px(4.))
+                            .px(px(10.))
+                            .py(px(4.))
+                            .text_size(px(11.))
+                            .cursor_pointer()
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.save_new_row(cx);
+                            }))
+                            .child("Insert"),
+                    )
+                    .child(
+                        div()
+                            .id("new-row-cancel-btn")
+                            .bg(rgb(0x313244))
+                            .text_color(rgb(0xa6adc8))
+                            .rounded(px(4.))
+                            .px(px(10.))
+                            .py(px(4.))
+                            .text_size(px(11.))
+                            .cursor_pointer()
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.cancel_new_row(cx);
+                            }))
+                            .child("Cancel"),
+                    ),
+            );
+
+            table = table.child(new_row_el);
         }
 
         table.into_any_element()

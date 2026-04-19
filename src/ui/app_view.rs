@@ -202,6 +202,7 @@ impl AppView {
                         AppView::save_and_reload(driver, updates, view2.clone(), cx);
                     }
                 }
+                TableViewEvent::InsertRow(_) => {}
                 TableViewEvent::NavigateToFk {
                     database,
                     table,
