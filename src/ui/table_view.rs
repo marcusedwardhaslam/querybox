@@ -516,6 +516,18 @@ impl TableView {
             );
         }
 
+        // Insert error notice
+        if let Some(ref err) = self.new_row_insert_error {
+            toolbar = toolbar.child(
+                div()
+                    .px(px(12.))
+                    .py(px(4.))
+                    .text_size(px(11.))
+                    .text_color(rgb(0xf38ba8))
+                    .child(err.clone()),
+            );
+        }
+
         // Buttons row
         let mut button_row = div()
             .flex()
