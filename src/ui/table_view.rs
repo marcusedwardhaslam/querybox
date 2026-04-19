@@ -1095,12 +1095,21 @@ impl TableView {
         }
 
         if self.new_row_active {
+            let has_insert_error = self.new_row_insert_error.is_some();
             let mut new_row_el = div()
                 .flex()
                 .flex_row()
-                .bg(rgba(0xa6e3a115u32))
+                .bg(if has_insert_error {
+                    rgba(0xf38ba815u32)
+                } else {
+                    rgba(0xa6e3a115u32)
+                })
                 .border_b_1()
-                .border_color(rgb(0xa6e3a1));
+                .border_color(if has_insert_error {
+                    rgb(0xf38ba8)
+                } else {
+                    rgb(0xa6e3a1)
+                });
 
             for (col_idx, col) in self.columns.iter().enumerate() {
                 let is_auto = col.is_primary_key && col.extra.contains("auto_increment");
@@ -1147,6 +1156,8 @@ impl TableView {
                             this.commit_edit(cx);
                             this.commit_new_row_edit(cx);
                             this.editing_new_row_col = Some(col_idx);
+                            this.new_row_dirty = true;
+                            this.new_row_insert_error = None;
                             let val = this.new_row_edits.get(&col_idx).cloned().unwrap_or_default();
                             this.edit_field.update(cx, |f, cx| f.set_content(&val, cx));
                             let fh = this.edit_field.read(cx).focus_handle.clone();
@@ -1160,6 +1171,36 @@ impl TableView {
                 new_row_el = new_row_el.child(cell);
             }
 
+            let insert_enabled = self.new_row_insert_error.is_none() || self.new_row_dirty;
+
+            let insert_btn = if insert_enabled {
+                div()
+                    .id("new-row-insert-btn")
+                    .bg(rgb(0xa6e3a1))
+                    .text_color(rgb(0x1e1e2e))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .rounded(px(4.))
+                    .px(px(10.))
+                    .py(px(4.))
+                    .text_size(px(11.))
+                    .cursor_pointer()
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.save_new_row(cx);
+                    }))
+                    .child("Insert")
+            } else {
+                div()
+                    .id("new-row-insert-btn")
+                    .bg(rgb(0x45475a))
+                    .text_color(rgb(0x6c7086))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .rounded(px(4.))
+                    .px(px(10.))
+                    .py(px(4.))
+                    .text_size(px(11.))
+                    .child("Insert")
+            };
+
             new_row_el = new_row_el.child(
                 div()
                     .flex()
@@ -1167,22 +1208,7 @@ impl TableView {
                     .items_center()
                     .gap_1()
                     .px(px(8.))
-                    .child(
-                        div()
-                            .id("new-row-insert-btn")
-                            .bg(rgb(0xa6e3a1))
-                            .text_color(rgb(0x1e1e2e))
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .rounded(px(4.))
-                            .px(px(10.))
-                            .py(px(4.))
-                            .text_size(px(11.))
-                            .cursor_pointer()
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.save_new_row(cx);
-                            }))
-                            .child("Insert"),
-                    )
+                    .child(insert_btn)
                     .child(
                         div()
                             .id("new-row-cancel-btn")
