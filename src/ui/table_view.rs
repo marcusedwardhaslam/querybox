@@ -960,6 +960,7 @@ impl TableView {
                                 .cursor_pointer()
                                 .on_click(cx.listener(
                                     move |_this, _event: &ClickEvent, _window, cx| {
+                                        cx.stop_propagation();
                                         cx.emit(TableViewEvent::NavigateToFk {
                                             database: ref_database.clone(),
                                             table: ref_table.clone(),

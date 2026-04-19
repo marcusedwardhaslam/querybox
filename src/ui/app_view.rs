@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::connection::ConnectionManager;
 use crate::db::types::Value;
 use crate::db::{types::Dialect, DatabaseDriver};
-use crate::query::filter::filters_to_sql;
+use crate::query::filter::{filters_to_sql, Filter, FilterOp};
 
 use super::connection_dialog::{ConnectionDialog, ConnectionDialogEvent};
 use super::editor_view::EditorView;
@@ -59,7 +59,7 @@ impl AppView {
                     let database = database.clone();
                     let table = table.clone();
                     if let Some(driver) = this.connection_manager.driver_arc() {
-                        AppView::open_table(this, driver, database, table, cx);
+                        AppView::open_table(this, driver, database, table, vec![], cx);
                     }
                 }
             }
@@ -142,6 +142,7 @@ impl AppView {
         driver: Arc<dyn DatabaseDriver>,
         database: String,
         table: String,
+        initial_filters: Vec<Filter>,
         cx: &mut Context<Self>,
     ) {
         // Reuse existing tab/view if already open
@@ -155,6 +156,14 @@ impl AppView {
 
         let view = cx.new(|cx| TableView::new(database.clone(), table.clone(), cx));
         this.table_views.push((tab_id, view.clone()));
+
+        if !initial_filters.is_empty() {
+            view.update(cx, |v, _cx| {
+                v.active_filters = initial_filters.clone();
+                v.page = 0;
+            });
+        }
+
         cx.notify();
 
         // Subscribe to events on this view
@@ -193,7 +202,33 @@ impl AppView {
                         AppView::save_and_reload(driver, updates, view2.clone(), cx);
                     }
                 }
-                TableViewEvent::NavigateToFk { .. } => {}
+                TableViewEvent::NavigateToFk {
+                    database,
+                    table,
+                    column,
+                    value,
+                } => {
+                    let filter_value = match value {
+                        Value::Int(n) => n.to_string(),
+                        Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    let filter = Filter {
+                        column: column.clone(),
+                        op: FilterOp::Equals,
+                        value: Some(filter_value),
+                    };
+                    if let Some(driver) = this.connection_manager.driver_arc() {
+                        AppView::open_table(
+                            this,
+                            driver,
+                            database.clone(),
+                            table.clone(),
+                            vec![filter],
+                            cx,
+                        );
+                    }
+                }
             },
         )
         .detach();
@@ -208,7 +243,7 @@ impl AppView {
             driver.clone(),
             database.clone(),
             table.clone(),
-            vec![],
+            initial_filters,
             dialect,
             0,
             view.clone(),
