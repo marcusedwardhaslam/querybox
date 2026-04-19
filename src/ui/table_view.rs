@@ -37,11 +37,14 @@ pub enum TableViewEvent {
     FiltersChanged,
     PageChanged,
     SaveChanges(Vec<RowUpdate>),
-    #[allow(dead_code)]
     NavigateToFk {
+        #[allow(dead_code)]
         database: String,
+        #[allow(dead_code)]
         table: String,
+        #[allow(dead_code)]
         column: String,
+        #[allow(dead_code)]
         value: crate::db::types::Value,
     },
 }
@@ -900,16 +903,26 @@ impl TableView {
                         }
                     };
 
-                    let col_name = self.columns.get(col_idx).map(|c| c.name.clone()).unwrap_or_default();
+                    let col_name = self
+                        .columns
+                        .get(col_idx)
+                        .map(|c| c.name.clone())
+                        .unwrap_or_default();
                     let fk_info = self
                         .foreign_keys
                         .iter()
                         .find(|fk| fk.column == col_name)
-                        .map(|fk| (fk.ref_database.clone(), fk.ref_table.clone(), fk.ref_column.clone()));
+                        .map(|fk| {
+                            (
+                                fk.ref_database.clone(),
+                                fk.ref_table.clone(),
+                                fk.ref_column.clone(),
+                            )
+                        });
 
                     let mut cell_div = div()
-                        .id(ElementId::Integer(
-                            200000 + row_idx as u64 * 500 + col_idx as u64,
+                        .id(ElementId::Name(
+                            format!("cell-{}-{}", row_idx, col_idx).into(),
                         ))
                         .w(px(150.))
                         .flex_shrink_0()
@@ -935,8 +948,8 @@ impl TableView {
                         let val_for_fk = val.clone();
                         cell_div = cell_div.child(
                             div()
-                                .id(ElementId::Integer(
-                                    300000 + row_idx as u64 * 500 + col_idx as u64,
+                                .id(ElementId::Name(
+                                    format!("fk-{}-{}", row_idx, col_idx).into(),
                                 ))
                                 .flex_shrink_0()
                                 .ml(px(2.))
@@ -945,14 +958,16 @@ impl TableView {
                                 .text_size(px(10.))
                                 .text_color(rgb(0x89b4fa))
                                 .cursor_pointer()
-                                .on_click(cx.listener(move |_this, _event: &ClickEvent, _window, cx| {
-                                    cx.emit(TableViewEvent::NavigateToFk {
-                                        database: ref_database.clone(),
-                                        table: ref_table.clone(),
-                                        column: ref_column.clone(),
-                                        value: val_for_fk.clone(),
-                                    });
-                                }))
+                                .on_click(cx.listener(
+                                    move |_this, _event: &ClickEvent, _window, cx| {
+                                        cx.emit(TableViewEvent::NavigateToFk {
+                                            database: ref_database.clone(),
+                                            table: ref_table.clone(),
+                                            column: ref_column.clone(),
+                                            value: val_for_fk.clone(),
+                                        });
+                                    },
+                                ))
                                 .child("→"),
                         );
                     }
