@@ -18,10 +18,14 @@ impl Drop for MySqlDriver {
             // Pool destructor needs a tokio context. Ensure one is always available.
             match tokio::runtime::Handle::try_current() {
                 Ok(handle) => {
-                    handle.spawn(async move { pool.disconnect().await.ok(); });
+                    handle.spawn(async move {
+                        pool.disconnect().await.ok();
+                    });
                 }
                 Err(_) => {
-                    crate::db_runtime().block_on(async move { pool.disconnect().await.ok(); });
+                    crate::db_runtime().block_on(async move {
+                        pool.disconnect().await.ok();
+                    });
                 }
             }
         }
@@ -144,6 +148,29 @@ impl DatabaseDriver for MySqlDriver {
         Ok(indexes)
     }
 
+    async fn foreign_keys(&self, database: &str, table: &str) -> Result<Vec<ForeignKey>, DbError> {
+        let mut conn = self.get_conn().await?;
+        let query = "SELECT COLUMN_NAME, REFERENCED_TABLE_SCHEMA, \
+                             REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME \
+                     FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE \
+                     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? \
+                       AND REFERENCED_TABLE_NAME IS NOT NULL \
+                     ORDER BY COLUMN_NAME";
+        let rows: Vec<(String, String, String, String)> = conn
+            .exec(query, (database, table))
+            .await
+            .map_err(|e| DbError::Query(e.to_string()))?;
+        Ok(rows
+            .into_iter()
+            .map(|(column, ref_database, ref_table, ref_column)| ForeignKey {
+                column,
+                ref_database,
+                ref_table,
+                ref_column,
+            })
+            .collect())
+    }
+
     async fn query(&self, sql: &str, params: &[Value]) -> Result<QueryResult, DbError> {
         let mut conn = self.get_conn().await?;
         exec_query(&mut conn, sql, params).await
@@ -211,7 +238,12 @@ async fn exec_query(conn: &mut Conn, sql: &str, params: &[Value]) -> Result<Quer
 
     let rows: Vec<Row> = result.iter().map(mysql_row_to_values).collect();
 
-    Ok(QueryResult { columns, rows, affected_rows: 0, execution_time_ms })
+    Ok(QueryResult {
+        columns,
+        rows,
+        affected_rows: 0,
+        execution_time_ms,
+    })
 }
 
 fn values_to_mysql_params(params: &[Value]) -> mysql_async::Params {
@@ -316,6 +348,23 @@ mod tests {
             .unwrap();
         assert!(!result.columns.is_empty());
         assert!(result.rows.len() >= 3);
+
+        driver.disconnect().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_foreign_keys() {
+        let profile = test_profile();
+        let opts = MySqlDriver::opts_from_profile(&profile, "password");
+        let pool = Pool::new(opts);
+        let driver = MySqlDriver { pool: Some(pool) };
+
+        let fks = driver.foreign_keys("querybox", "orders").await.unwrap();
+        assert!(
+            fks.iter().any(|fk| fk.column == "user_id"),
+            "orders should have a FK on user_id, got: {:?}",
+            fks
+        );
 
         driver.disconnect().await.unwrap();
     }

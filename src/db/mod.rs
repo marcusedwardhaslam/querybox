@@ -40,6 +40,12 @@ pub trait DatabaseDriver: Send + Sync {
     #[allow(dead_code)]
     async fn indexes(&self, database: &str, table: &str) -> Result<Vec<Index>, DbError>;
 
+    #[allow(dead_code)]
+    async fn foreign_keys(&self, database: &str, table: &str) -> Result<Vec<ForeignKey>, DbError> {
+        let _ = (database, table);
+        Ok(vec![])
+    }
+
     async fn query(&self, sql: &str, params: &[Value]) -> Result<QueryResult, DbError>;
 
     async fn query_in(

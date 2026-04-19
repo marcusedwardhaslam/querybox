@@ -48,6 +48,16 @@ pub struct Index {
     pub unique: bool,
 }
 
+/// A foreign key constraint on a table.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
+pub struct ForeignKey {
+    pub column: String,
+    pub ref_database: String,
+    pub ref_table: String,
+    pub ref_column: String,
+}
+
 /// A single row of query results.
 pub type Row = Vec<Value>;
 

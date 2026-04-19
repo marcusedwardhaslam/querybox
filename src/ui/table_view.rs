@@ -7,7 +7,7 @@ use super::text_field::TextField;
 use crate::db::types::{Column, QueryResult, Row, Value};
 use crate::query::filter::{Filter, FilterOp};
 
-actions!(table_view, [CommitEdit, CancelEdit, SaveEdits, GoToPage]);
+actions!(table_view, [CommitEdit, CancelEdit, SaveEdits, GoToPage, InsertNewRow]);
 
 pub fn register_table_view_actions(cx: &mut App) {
     cx.bind_keys([
@@ -15,6 +15,7 @@ pub fn register_table_view_actions(cx: &mut App) {
         KeyBinding::new("escape", CancelEdit, Some("TableView")),
         KeyBinding::new("cmd-s", SaveEdits, Some("TableView")),
         KeyBinding::new("enter", GoToPage, Some("PageJumpField")),
+        KeyBinding::new("cmd-return", InsertNewRow, Some("TableView")),
     ]);
 }
 
@@ -33,10 +34,24 @@ pub struct RowUpdate {
     pub edits: Vec<CellEdit>,
 }
 
+#[derive(Clone, Debug)]
+pub struct NewRowInsert {
+    pub database: String,
+    pub table: String,
+    pub column_values: Vec<(String, crate::db::types::Value)>,
+}
+
 pub enum TableViewEvent {
     FiltersChanged,
     PageChanged,
     SaveChanges(Vec<RowUpdate>),
+    InsertRow(NewRowInsert),
+    NavigateToFk {
+        database: String,
+        table: String,
+        column: String,
+        value: crate::db::types::Value,
+    },
 }
 
 impl EventEmitter<TableViewEvent> for TableView {}
@@ -68,10 +83,16 @@ pub struct TableView {
     edit_field: Entity<TextField>,
     save_error: Option<String>,
 
+    // New row insert
+    new_row_active: bool,
+    new_row_edits: HashMap<usize, String>,
+    editing_new_row_col: Option<usize>,
+
     // Page jump
     page_jump_field: Entity<TextField>,
 
     scroll_handle: ScrollHandle,
+    pub foreign_keys: Vec<crate::db::types::ForeignKey>,
 }
 
 impl TableView {
@@ -97,8 +118,12 @@ impl TableView {
             editing_cell: None,
             edit_field: cx.new(|cx| TextField::new(cx, "")),
             save_error: None,
-            page_jump_field: cx.new(|cx| TextField::new(cx, "#")),  // page number input
+            new_row_active: false,
+            new_row_edits: HashMap::new(),
+            editing_new_row_col: None,
+            page_jump_field: cx.new(|cx| TextField::new(cx, "#")), // page number input
             scroll_handle: ScrollHandle::new(),
+            foreign_keys: vec![],
         }
     }
 
@@ -117,12 +142,24 @@ impl TableView {
         self.pending_edits.clear();
         self.editing_cell = None;
         self.save_error = None;
+        self.new_row_active = false;
+        self.new_row_edits.clear();
+        self.editing_new_row_col = None;
         cx.notify();
     }
 
     pub fn set_error(&mut self, error: String, cx: &mut Context<Self>) {
         self.error = Some(error);
         self.loading = false;
+        cx.notify();
+    }
+
+    pub fn set_foreign_keys(
+        &mut self,
+        fks: Vec<crate::db::types::ForeignKey>,
+        cx: &mut Context<Self>,
+    ) {
+        self.foreign_keys = fks;
         cx.notify();
     }
 
@@ -136,6 +173,7 @@ impl TableView {
 
     fn start_editing(&mut self, row: usize, col: usize, cx: &mut Context<Self>) {
         self.commit_edit(cx);
+        self.commit_new_row_edit(cx);
         let current = self
             .rows
             .get(row)
@@ -162,6 +200,23 @@ impl TableView {
 
     fn cancel_edit(&mut self, cx: &mut Context<Self>) {
         self.editing_cell = None;
+        cx.notify();
+    }
+
+    fn commit_new_row_edit(&mut self, cx: &mut Context<Self>) {
+        if let Some(col_idx) = self.editing_new_row_col.take() {
+            let value = self.edit_field.read(cx).content.to_string();
+            if !value.is_empty() {
+                self.new_row_edits.insert(col_idx, value);
+            }
+            cx.notify();
+        }
+    }
+
+    fn cancel_new_row(&mut self, cx: &mut Context<Self>) {
+        self.new_row_active = false;
+        self.new_row_edits.clear();
+        self.editing_new_row_col = None;
         cx.notify();
     }
 
@@ -242,6 +297,35 @@ impl TableView {
 
     fn on_go_to_page(&mut self, _: &GoToPage, _: &mut Window, cx: &mut Context<Self>) {
         self.go_to_page(cx);
+    }
+
+    fn on_insert_new_row(&mut self, _: &InsertNewRow, _: &mut Window, cx: &mut Context<Self>) {
+        self.save_new_row(cx);
+    }
+
+    fn save_new_row(&mut self, cx: &mut Context<Self>) {
+        self.commit_new_row_edit(cx);
+        if self.new_row_edits.is_empty() {
+            return;
+        }
+        let column_values: Vec<(String, crate::db::types::Value)> = self
+            .new_row_edits
+            .iter()
+            .filter_map(|(&col_idx, value)| {
+                self.columns
+                    .get(col_idx)
+                    .map(|col| (col.name.clone(), crate::db::types::Value::String(value.clone())))
+            })
+            .collect();
+        cx.emit(TableViewEvent::InsertRow(NewRowInsert {
+            database: self.database.clone(),
+            table: self.table_name.clone(),
+            column_values,
+        }));
+        self.new_row_active = false;
+        self.new_row_edits.clear();
+        self.editing_new_row_col = None;
+        cx.notify();
     }
 
     // ── Filters ───────────────────────────────────────────────────────────────
@@ -329,6 +413,7 @@ impl Render for TableView {
             .on_action(cx.listener(Self::on_cancel_edit))
             .on_action(cx.listener(Self::on_save_edits))
             .on_action(cx.listener(Self::on_go_to_page))
+            .on_action(cx.listener(Self::on_insert_new_row))
             .flex()
             .flex_col()
             .size_full()
@@ -445,6 +530,31 @@ impl TableView {
                         cx.notify();
                     }))
                     .child("+ Filter"),
+            )
+            .child(
+                div()
+                    .id("new-row-btn")
+                    .bg(if self.new_row_active { rgb(0xa6e3a1) } else { rgb(0x313244) })
+                    .text_color(if self.new_row_active { rgb(0x1e1e2e) } else { rgb(0xa6adc8) })
+                    .font_weight(if self.new_row_active {
+                        FontWeight::SEMIBOLD
+                    } else {
+                        FontWeight::NORMAL
+                    })
+                    .rounded(px(4.))
+                    .px(px(10.))
+                    .py(px(4.))
+                    .text_size(px(11.))
+                    .cursor_pointer()
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        if this.new_row_active {
+                            this.cancel_new_row(cx);
+                        } else {
+                            this.new_row_active = true;
+                            cx.notify();
+                        }
+                    }))
+                    .child("+ New Row"),
             );
 
         if has_pending {
@@ -539,7 +649,12 @@ impl TableView {
                         .flex_row()
                         .items_center()
                         .gap_1()
-                        .child(div().w(px(64.)).overflow_hidden().child(self.page_jump_field.clone()))
+                        .child(
+                            div()
+                                .w(px(64.))
+                                .overflow_hidden()
+                                .child(self.page_jump_field.clone()),
+                        )
                         .child(
                             div()
                                 .id("page-go-btn")
@@ -866,7 +981,7 @@ impl TableView {
                 } else {
                     let display = pending_value.clone().unwrap_or_else(|| val.to_string());
                     let color = if pending_value.is_some() {
-                        rgb(0xf9e2af) // amber — pending change
+                        rgb(0xf9e2af)
                     } else {
                         match val {
                             Value::Null => rgb(0x6c7086),
@@ -876,12 +991,33 @@ impl TableView {
                             _ => rgb(0xcdd6f4),
                         }
                     };
-                    div()
-                        .id(ElementId::Integer(
-                            200000 + row_idx as u64 * 500 + col_idx as u64,
+
+                    let col_name = self
+                        .columns
+                        .get(col_idx)
+                        .map(|c| c.name.clone())
+                        .unwrap_or_default();
+                    let fk_info = self
+                        .foreign_keys
+                        .iter()
+                        .find(|fk| fk.column == col_name)
+                        .map(|fk| {
+                            (
+                                fk.ref_database.clone(),
+                                fk.ref_table.clone(),
+                                fk.ref_column.clone(),
+                            )
+                        });
+
+                    let mut cell_div = div()
+                        .id(ElementId::Name(
+                            format!("cell-{}-{}", row_idx, col_idx).into(),
                         ))
                         .w(px(150.))
                         .flex_shrink_0()
+                        .flex()
+                        .flex_row()
+                        .items_center()
                         .px(px(12.))
                         .py(px(6.))
                         .text_size(px(12.))
@@ -895,14 +1031,153 @@ impl TableView {
                                 window.focus(&fh, cx);
                             }
                         }))
-                        .child(display)
-                        .into_any_element()
+                        .child(div().flex_1().overflow_hidden().child(display));
+
+                    if let Some((ref_database, ref_table, ref_column)) = fk_info {
+                        let val_for_fk = val.clone();
+                        cell_div = cell_div.child(
+                            div()
+                                .id(ElementId::Name(
+                                    format!("fk-{}-{}", row_idx, col_idx).into(),
+                                ))
+                                .flex_shrink_0()
+                                .ml(px(2.))
+                                .px(px(4.))
+                                .py(px(1.))
+                                .text_size(px(10.))
+                                .text_color(rgb(0x89b4fa))
+                                .cursor_pointer()
+                                .on_click(cx.listener(
+                                    move |_this, _event: &ClickEvent, _window, cx| {
+                                        cx.stop_propagation();
+                                        cx.emit(TableViewEvent::NavigateToFk {
+                                            database: ref_database.clone(),
+                                            table: ref_table.clone(),
+                                            column: ref_column.clone(),
+                                            value: val_for_fk.clone(),
+                                        });
+                                    },
+                                ))
+                                .child("→"),
+                        );
+                    }
+
+                    cell_div.into_any_element()
                 };
 
                 row_el = row_el.child(cell);
             }
 
             table = table.child(row_el);
+        }
+
+        if self.new_row_active {
+            let mut new_row_el = div()
+                .flex()
+                .flex_row()
+                .bg(rgba(0xa6e3a115u32))
+                .border_b_1()
+                .border_color(rgb(0xa6e3a1));
+
+            for (col_idx, col) in self.columns.iter().enumerate() {
+                let is_auto = col.is_primary_key && col.extra.contains("auto_increment");
+                let is_editing_this = self.editing_new_row_col == Some(col_idx);
+                let pending = self.new_row_edits.get(&col_idx).cloned();
+
+                let cell: AnyElement = if is_auto {
+                    div()
+                        .w(px(150.))
+                        .flex_shrink_0()
+                        .px(px(12.))
+                        .py(px(6.))
+                        .text_size(px(12.))
+                        .text_color(rgb(0x45475a))
+                        .child("auto")
+                        .into_any_element()
+                } else if is_editing_this {
+                    div()
+                        .w(px(150.))
+                        .flex_shrink_0()
+                        .px(px(4.))
+                        .py(px(2.))
+                        .bg(rgba(0xa6e3a122u32))
+                        .child(self.edit_field.clone())
+                        .into_any_element()
+                } else {
+                    let display = pending.clone().unwrap_or_else(|| col.name.clone());
+                    let color = if pending.is_some() {
+                        rgb(0xa6e3a1)
+                    } else {
+                        rgb(0x45475a)
+                    };
+                    div()
+                        .id(ElementId::Name(format!("new-row-col-{}", col_idx).into()))
+                        .w(px(150.))
+                        .flex_shrink_0()
+                        .px(px(12.))
+                        .py(px(6.))
+                        .text_size(px(12.))
+                        .text_color(color)
+                        .overflow_hidden()
+                        .cursor(CursorStyle::IBeam)
+                        .on_click(cx.listener(move |this, _event: &ClickEvent, window, cx| {
+                            this.commit_edit(cx);
+                            this.commit_new_row_edit(cx);
+                            this.editing_new_row_col = Some(col_idx);
+                            let val = this.new_row_edits.get(&col_idx).cloned().unwrap_or_default();
+                            this.edit_field.update(cx, |f, cx| f.set_content(&val, cx));
+                            let fh = this.edit_field.read(cx).focus_handle.clone();
+                            window.focus(&fh, cx);
+                            cx.notify();
+                        }))
+                        .child(display)
+                        .into_any_element()
+                };
+
+                new_row_el = new_row_el.child(cell);
+            }
+
+            new_row_el = new_row_el.child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap_1()
+                    .px(px(8.))
+                    .child(
+                        div()
+                            .id("new-row-insert-btn")
+                            .bg(rgb(0xa6e3a1))
+                            .text_color(rgb(0x1e1e2e))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .rounded(px(4.))
+                            .px(px(10.))
+                            .py(px(4.))
+                            .text_size(px(11.))
+                            .cursor_pointer()
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.save_new_row(cx);
+                            }))
+                            .child("Insert"),
+                    )
+                    .child(
+                        div()
+                            .id("new-row-cancel-btn")
+                            .bg(rgb(0x313244))
+                            .text_color(rgb(0xa6adc8))
+                            .rounded(px(4.))
+                            .px(px(10.))
+                            .py(px(4.))
+                            .text_size(px(11.))
+                            .cursor_pointer()
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.cancel_new_row(cx);
+                            }))
+                            .child("Cancel"),
+                    ),
+            );
+
+            table = table.child(new_row_el);
         }
 
         table.into_any_element()

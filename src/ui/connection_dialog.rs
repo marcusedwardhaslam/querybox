@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use gpui::prelude::FluentBuilder;
 use gpui::*;
 
+use super::text_field::TextField;
 use crate::connection::{
     profile::{ConnectionProfile, DatabaseEngine},
     storage,
 };
-use super::text_field::TextField;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,7 +27,10 @@ enum TestState {
 }
 
 pub enum ConnectionDialogEvent {
-    Connect { profile: ConnectionProfile, password: String },
+    Connect {
+        profile: ConnectionProfile,
+        password: String,
+    },
 }
 
 impl EventEmitter<ConnectionDialogEvent> for ConnectionDialog {}
@@ -59,7 +62,8 @@ pub struct ConnectionDialog {
 impl ConnectionDialog {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let saved_profiles = storage::load_profiles().unwrap_or_default();
-        let conn_statuses = saved_profiles.iter()
+        let conn_statuses = saved_profiles
+            .iter()
             .map(|p| (p.id.clone(), ConnStatus::Checking))
             .collect();
 
@@ -91,9 +95,11 @@ impl ConnectionDialog {
         let database_field = cx.new(|cx| TextField::new(cx, "Database (optional)"));
 
         // Kick off status checks after entity is ready
-        cx.spawn(async move |this: WeakEntity<ConnectionDialog>, cx: &mut AsyncApp| {
-            this.update(cx, |d, cx| d.start_status_checks(cx)).ok();
-        })
+        cx.spawn(
+            async move |this: WeakEntity<ConnectionDialog>, cx: &mut AsyncApp| {
+                this.update(cx, |d, cx| d.start_status_checks(cx)).ok();
+            },
+        )
         .detach();
 
         Self {
@@ -117,7 +123,8 @@ impl ConnectionDialog {
         self.visible = true;
         self.saved_profiles = storage::load_profiles().unwrap_or_default();
         for p in &self.saved_profiles {
-            self.conn_statuses.insert(p.id.clone(), ConnStatus::Checking);
+            self.conn_statuses
+                .insert(p.id.clone(), ConnStatus::Checking);
         }
         self.start_status_checks(cx);
         cx.notify();
@@ -137,7 +144,11 @@ impl ConnectionDialog {
             host: self.host_field.read(cx).content.to_string(),
             port: self.port_field.read(cx).content.parse().unwrap_or(3306),
             user: self.user_field.read(cx).content.to_string(),
-            default_database: if database.is_empty() { None } else { Some(database) },
+            default_database: if database.is_empty() {
+                None
+            } else {
+                Some(database)
+            },
             file_path: None,
         }
     }
@@ -151,12 +162,18 @@ impl ConnectionDialog {
     fn reset_form(&mut self, cx: &mut Context<Self>) {
         self.form_profile_id = None;
         self.engine = DatabaseEngine::MySql;
-        self.name_field.update(cx, |f, cx| f.set_content("New Connection", cx));
-        self.host_field.update(cx, |f, cx| f.set_content("127.0.0.1", cx));
-        self.port_field.update(cx, |f, cx| f.set_content("3306", cx));
-        self.user_field.update(cx, |f, cx| f.set_content("root", cx));
-        self.password_field.update(cx, |f, cx| f.set_content("", cx));
-        self.database_field.update(cx, |f, cx| f.set_content("", cx));
+        self.name_field
+            .update(cx, |f, cx| f.set_content("New Connection", cx));
+        self.host_field
+            .update(cx, |f, cx| f.set_content("127.0.0.1", cx));
+        self.port_field
+            .update(cx, |f, cx| f.set_content("3306", cx));
+        self.user_field
+            .update(cx, |f, cx| f.set_content("root", cx));
+        self.password_field
+            .update(cx, |f, cx| f.set_content("", cx));
+        self.database_field
+            .update(cx, |f, cx| f.set_content("", cx));
         self.test_state = TestState::Idle;
         cx.notify();
     }
@@ -164,14 +181,23 @@ impl ConnectionDialog {
     fn load_profile_into_form(&mut self, profile: &ConnectionProfile, cx: &mut Context<Self>) {
         self.form_profile_id = Some(profile.id.clone());
         self.engine = profile.engine;
-        self.name_field.update(cx, |f, cx| f.set_content(&profile.name, cx));
-        self.host_field.update(cx, |f, cx| f.set_content(&profile.host, cx));
-        self.port_field.update(cx, |f, cx| f.set_content(profile.port.to_string(), cx));
-        self.user_field.update(cx, |f, cx| f.set_content(&profile.user, cx));
-        let pw = storage::get_password(profile).ok().flatten().unwrap_or_default();
-        self.password_field.update(cx, |f, cx| f.set_content(&pw, cx));
+        self.name_field
+            .update(cx, |f, cx| f.set_content(&profile.name, cx));
+        self.host_field
+            .update(cx, |f, cx| f.set_content(&profile.host, cx));
+        self.port_field
+            .update(cx, |f, cx| f.set_content(profile.port.to_string(), cx));
+        self.user_field
+            .update(cx, |f, cx| f.set_content(&profile.user, cx));
+        let pw = storage::get_password(profile)
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        self.password_field
+            .update(cx, |f, cx| f.set_content(&pw, cx));
         let db = profile.default_database.clone().unwrap_or_default();
-        self.database_field.update(cx, |f, cx| f.set_content(&db, cx));
+        self.database_field
+            .update(cx, |f, cx| f.set_content(&db, cx));
         self.test_state = TestState::Idle;
         cx.notify();
     }
@@ -191,10 +217,13 @@ impl ConnectionDialog {
 
         self.saved_profiles = profiles;
         for p in &self.saved_profiles {
-            self.conn_statuses.entry(p.id.clone()).or_insert(ConnStatus::Checking);
+            self.conn_statuses
+                .entry(p.id.clone())
+                .or_insert(ConnStatus::Checking);
         }
         // Mark the just-saved profile as checking and re-test it
-        self.conn_statuses.insert(profile.id.clone(), ConnStatus::Checking);
+        self.conn_statuses
+            .insert(profile.id.clone(), ConnStatus::Checking);
         self.start_status_check_for(profile.id.clone(), profile.clone(), password, cx);
 
         self.reset_form(cx);
@@ -221,23 +250,28 @@ impl ConnectionDialog {
             tx.send(result).ok();
         });
 
-        cx.spawn(async move |this: WeakEntity<ConnectionDialog>, cx: &mut AsyncApp| {
-            if let Ok(result) = rx.await {
-                this.update(cx, |d, cx| {
-                    d.test_state = match result {
-                        Ok(()) => TestState::Ok,
-                        Err(e) => TestState::Failed(e),
-                    };
-                    cx.notify();
-                })
-                .ok();
-            }
-        })
+        cx.spawn(
+            async move |this: WeakEntity<ConnectionDialog>, cx: &mut AsyncApp| {
+                if let Ok(result) = rx.await {
+                    this.update(cx, |d, cx| {
+                        d.test_state = match result {
+                            Ok(()) => TestState::Ok,
+                            Err(e) => TestState::Failed(e),
+                        };
+                        cx.notify();
+                    })
+                    .ok();
+                }
+            },
+        )
         .detach();
     }
 
     fn connect_saved(&mut self, profile: ConnectionProfile, cx: &mut Context<Self>) {
-        let password = storage::get_password(&profile).ok().flatten().unwrap_or_default();
+        let password = storage::get_password(&profile)
+            .ok()
+            .flatten()
+            .unwrap_or_default();
         cx.emit(ConnectionDialogEvent::Connect { profile, password });
     }
 
@@ -257,7 +291,10 @@ impl ConnectionDialog {
     fn start_status_checks(&mut self, cx: &mut Context<Self>) {
         let profiles: Vec<ConnectionProfile> = self.saved_profiles.clone();
         for profile in profiles {
-            let pw = storage::get_password(&profile).ok().flatten().unwrap_or_default();
+            let pw = storage::get_password(&profile)
+                .ok()
+                .flatten()
+                .unwrap_or_default();
             self.start_status_check_for(profile.id.clone(), profile, pw, cx);
         }
     }
@@ -281,18 +318,24 @@ impl ConnectionDialog {
             tx.send(ok).ok();
         });
 
-        cx.spawn(async move |this: WeakEntity<ConnectionDialog>, cx: &mut AsyncApp| {
-            if let Ok(ok) = rx.await {
-                this.update(cx, |d, cx| {
-                    d.conn_statuses.insert(
-                        profile_id,
-                        if ok { ConnStatus::Ok } else { ConnStatus::Failed },
-                    );
-                    cx.notify();
-                })
-                .ok();
-            }
-        })
+        cx.spawn(
+            async move |this: WeakEntity<ConnectionDialog>, cx: &mut AsyncApp| {
+                if let Ok(ok) = rx.await {
+                    this.update(cx, |d, cx| {
+                        d.conn_statuses.insert(
+                            profile_id,
+                            if ok {
+                                ConnStatus::Ok
+                            } else {
+                                ConnStatus::Failed
+                            },
+                        );
+                        cx.notify();
+                    })
+                    .ok();
+                }
+            },
+        )
         .detach();
     }
 }
@@ -363,7 +406,11 @@ impl ConnectionDialog {
         // Connection rows
         let mut list = div().flex().flex_col().flex_1().overflow_hidden();
         for profile in &self.saved_profiles {
-            let status = self.conn_statuses.get(&profile.id).cloned().unwrap_or(ConnStatus::Checking);
+            let status = self
+                .conn_statuses
+                .get(&profile.id)
+                .cloned()
+                .unwrap_or(ConnStatus::Checking);
             let dot_color = match status {
                 ConnStatus::Checking => rgb(0x585b70),
                 ConnStatus::Ok => rgb(0xa6e3a1),
@@ -410,7 +457,9 @@ impl ConnectionDialog {
                     // Quick-connect arrow
                     .child(
                         div()
-                            .id(ElementId::Name(format!("connect-{}", profile_for_connect.id).into()))
+                            .id(ElementId::Name(
+                                format!("connect-{}", profile_for_connect.id).into(),
+                            ))
                             .text_size(px(13.))
                             .text_color(rgb(0x6c7086))
                             .cursor_pointer()
@@ -423,7 +472,9 @@ impl ConnectionDialog {
                     // Delete button
                     .child(
                         div()
-                            .id(ElementId::Name(format!("delete-{}", profile_id_for_delete).into()))
+                            .id(ElementId::Name(
+                                format!("delete-{}", profile_id_for_delete).into(),
+                            ))
                             .text_size(px(13.))
                             .text_color(rgb(0x45475a))
                             .cursor_pointer()
@@ -483,16 +534,32 @@ impl ConnectionDialog {
                 div()
                     .flex()
                     .gap_2()
-                    .child(div().flex_1().child(self.render_labeled("Host", self.host_field.clone())))
-                    .child(div().w(px(90.)).child(self.render_labeled("Port", self.port_field.clone()))),
+                    .child(
+                        div()
+                            .flex_1()
+                            .child(self.render_labeled("Host", self.host_field.clone())),
+                    )
+                    .child(
+                        div()
+                            .w(px(90.))
+                            .child(self.render_labeled("Port", self.port_field.clone())),
+                    ),
             )
             // User + Password
             .child(
                 div()
                     .flex()
                     .gap_2()
-                    .child(div().flex_1().child(self.render_labeled("User", self.user_field.clone())))
-                    .child(div().flex_1().child(self.render_labeled("Password", self.password_field.clone()))),
+                    .child(
+                        div()
+                            .flex_1()
+                            .child(self.render_labeled("User", self.user_field.clone())),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .child(self.render_labeled("Password", self.password_field.clone())),
+                    ),
             )
             // Database
             .child(self.render_labeled("Database (optional)", self.database_field.clone()))
@@ -555,27 +622,25 @@ impl ConnectionDialog {
                 .flex()
                 .items_center()
                 .gap_2()
+                .child(div().w(px(8.)).h(px(8.)).rounded_full().bg(rgb(0x585b70)))
                 .child(
                     div()
-                        .w(px(8.))
-                        .h(px(8.))
-                        .rounded_full()
-                        .bg(rgb(0x585b70)),
+                        .text_size(px(12.))
+                        .text_color(rgb(0x6c7086))
+                        .child("Testing…"),
                 )
-                .child(div().text_size(px(12.)).text_color(rgb(0x6c7086)).child("Testing…"))
                 .into_any_element(),
             TestState::Ok => div()
                 .flex()
                 .items_center()
                 .gap_2()
+                .child(div().w(px(8.)).h(px(8.)).rounded_full().bg(rgb(0xa6e3a1)))
                 .child(
                     div()
-                        .w(px(8.))
-                        .h(px(8.))
-                        .rounded_full()
-                        .bg(rgb(0xa6e3a1)),
+                        .text_size(px(12.))
+                        .text_color(rgb(0xa6e3a1))
+                        .child("Connection successful"),
                 )
-                .child(div().text_size(px(12.)).text_color(rgb(0xa6e3a1)).child("Connection successful"))
                 .into_any_element(),
             TestState::Failed(e) => div()
                 .w_full()
@@ -630,7 +695,11 @@ impl ConnectionDialog {
                     .px(px(14.))
                     .py(px(6.))
                     .bg(rgb(0x313244))
-                    .text_color(if is_testing { rgb(0x6c7086) } else { rgb(0xa6adc8) })
+                    .text_color(if is_testing {
+                        rgb(0x6c7086)
+                    } else {
+                        rgb(0xa6adc8)
+                    })
                     .rounded(px(4.))
                     .text_size(px(12.))
                     .cursor_pointer()

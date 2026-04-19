@@ -226,12 +226,7 @@ impl TextField {
         }
     }
 
-    fn on_mouse_down(
-        &mut self,
-        event: &MouseDownEvent,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn on_mouse_down(&mut self, event: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         self.is_selecting = true;
         if event.modifiers.shift {
             self.select_to(self.index_for_mouse_position(event.position), cx);
@@ -277,9 +272,7 @@ impl EntityInputHandler for TextField {
     }
 
     fn marked_text_range(&self, _: &mut Window, _: &mut Context<Self>) -> Option<Range<usize>> {
-        self.marked_range
-            .as_ref()
-            .map(|r| self.range_to_utf16(r))
+        self.marked_range.as_ref().map(|r| self.range_to_utf16(r))
     }
 
     fn unmark_text(&mut self, _: &mut Window, _: &mut Context<Self>) {
@@ -401,9 +394,7 @@ impl Render for TextField {
             .text_color(rgb(0xcdd6f4))
             .flex()
             .items_center()
-            .child(TextFieldElement {
-                field: cx.entity(),
-            })
+            .child(TextFieldElement { field: cx.entity() })
     }
 }
 
@@ -563,8 +554,15 @@ impl Element for TextFieldElement {
         }
 
         let line = prepaint.line.take().unwrap();
-        line.paint(bounds.origin, window.line_height(), TextAlign::Left, None, window, cx)
-            .ok();
+        line.paint(
+            bounds.origin,
+            window.line_height(),
+            TextAlign::Left,
+            None,
+            window,
+            cx,
+        )
+        .ok();
 
         if focus_handle.is_focused(window) {
             if let Some(cursor) = prepaint.cursor.take() {

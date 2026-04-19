@@ -4,13 +4,13 @@ use std::sync::Arc;
 use crate::connection::ConnectionManager;
 use crate::db::types::Value;
 use crate::db::{types::Dialect, DatabaseDriver};
-use crate::query::filter::filters_to_sql;
+use crate::query::filter::{filters_to_sql, Filter, FilterOp};
 
 use super::connection_dialog::{ConnectionDialog, ConnectionDialogEvent};
 use super::editor_view::EditorView;
 use super::sidebar::{Sidebar, SidebarEvent};
 use super::tab_bar::TabBar;
-use super::table_view::{RowUpdate, TableView, TableViewEvent};
+use super::table_view::{NewRowInsert, RowUpdate, TableView, TableViewEvent};
 
 pub struct AppView {
     focus_handle: FocusHandle,
@@ -59,7 +59,7 @@ impl AppView {
                     let database = database.clone();
                     let table = table.clone();
                     if let Some(driver) = this.connection_manager.driver_arc() {
-                        AppView::open_table(this, driver, database, table, cx);
+                        AppView::open_table(this, driver, database, table, vec![], cx);
                     }
                 }
             }
@@ -142,6 +142,7 @@ impl AppView {
         driver: Arc<dyn DatabaseDriver>,
         database: String,
         table: String,
+        initial_filters: Vec<Filter>,
         cx: &mut Context<Self>,
     ) {
         // Reuse existing tab/view if already open
@@ -155,6 +156,14 @@ impl AppView {
 
         let view = cx.new(|cx| TableView::new(database.clone(), table.clone(), cx));
         this.table_views.push((tab_id, view.clone()));
+
+        if !initial_filters.is_empty() {
+            view.update(cx, |v, _cx| {
+                v.active_filters = initial_filters.clone();
+                v.page = 0;
+            });
+        }
+
         cx.notify();
 
         // Subscribe to events on this view
@@ -193,6 +202,39 @@ impl AppView {
                         AppView::save_and_reload(driver, updates, view2.clone(), cx);
                     }
                 }
+                TableViewEvent::InsertRow(insert) => {
+                    let insert = insert.clone();
+                    if let Some(driver) = this.connection_manager.driver_arc() {
+                        AppView::execute_insert(driver, insert, view2.clone(), cx);
+                    }
+                }
+                TableViewEvent::NavigateToFk {
+                    database,
+                    table,
+                    column,
+                    value,
+                } => {
+                    let filter_value = match value {
+                        Value::Int(n) => n.to_string(),
+                        Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    let filter = Filter {
+                        column: column.clone(),
+                        op: FilterOp::Equals,
+                        value: Some(filter_value),
+                    };
+                    if let Some(driver) = this.connection_manager.driver_arc() {
+                        AppView::open_table(
+                            this,
+                            driver,
+                            database.clone(),
+                            table.clone(),
+                            vec![filter],
+                            cx,
+                        );
+                    }
+                }
             },
         )
         .detach();
@@ -203,7 +245,17 @@ impl AppView {
             .driver()
             .map(|d| d.dialect())
             .unwrap_or(Dialect::MySql);
-        AppView::query_table(driver, database, table, vec![], dialect, 0, view, cx);
+        AppView::query_table(
+            driver.clone(),
+            database.clone(),
+            table.clone(),
+            initial_filters,
+            dialect,
+            0,
+            view.clone(),
+            cx,
+        );
+        AppView::load_foreign_keys(driver, database, table, view, cx);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -285,17 +337,17 @@ impl AppView {
                 let set_clauses: Vec<String> = update
                     .edits
                     .iter()
-                    .map(|e| format!("`{}` = ?", e.column))
+                    .map(|e| format!("`{}` = ?", e.column.replace('`', "``")))
                     .collect();
                 let where_clauses: Vec<String> = update
                     .pk_columns
                     .iter()
-                    .map(|pk| format!("`{}` = ?", pk))
+                    .map(|pk| format!("`{}` = ?", pk.replace('`', "``")))
                     .collect();
                 let sql = format!(
                     "UPDATE `{}`.`{}` SET {} WHERE {}",
-                    update.database,
-                    update.table,
+                    update.database.replace('`', "``"),
+                    update.table.replace('`', "``"),
                     set_clauses.join(", "),
                     where_clauses.join(" AND "),
                 );
@@ -311,6 +363,81 @@ impl AppView {
                 }
             }
             tx.send(Ok(())).ok();
+        });
+
+        cx.spawn(
+            async move |this: WeakEntity<AppView>, cx: &mut AsyncApp| match rx.await {
+                Ok(Ok(())) => {
+                    this.update(cx, |app_view, cx| {
+                        let (database, table, filters, page, dialect) = {
+                            let tv = view.read(cx);
+                            let dialect = app_view
+                                .connection_manager
+                                .driver()
+                                .map(|d| d.dialect())
+                                .unwrap_or(Dialect::MySql);
+                            (
+                                tv.database.clone(),
+                                tv.table_name.clone(),
+                                tv.active_filters.clone(),
+                                tv.page,
+                                dialect,
+                            )
+                        };
+                        if let Some(driver) = app_view.connection_manager.driver_arc() {
+                            AppView::query_table(
+                                driver,
+                                database,
+                                table,
+                                filters,
+                                dialect,
+                                page,
+                                view.clone(),
+                                cx,
+                            );
+                        }
+                    })
+                    .ok();
+                }
+                Ok(Err(e)) => {
+                    view.update(cx, |v, cx| v.set_error(e, cx));
+                }
+                Err(_) => {}
+            },
+        )
+        .detach();
+    }
+
+    fn execute_insert(
+        driver: Arc<dyn DatabaseDriver>,
+        insert: NewRowInsert,
+        view: Entity<TableView>,
+        cx: &mut Context<Self>,
+    ) {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
+        crate::db_runtime().spawn(async move {
+            let col_names: Vec<String> = insert
+                .column_values
+                .iter()
+                .map(|(col, _)| format!("`{}`", col.replace('`', "``")))
+                .collect();
+            let placeholders: Vec<&str> = insert.column_values.iter().map(|_| "?").collect();
+            let sql = format!(
+                "INSERT INTO `{}`.`{}` ({}) VALUES ({})",
+                insert.database.replace('`', "``"),
+                insert.table.replace('`', "``"),
+                col_names.join(", "),
+                placeholders.join(", "),
+            );
+            let params: Vec<Value> = insert.column_values.into_iter().map(|(_, v)| v).collect();
+            match driver.execute(&sql, &params).await {
+                Ok(_) => {
+                    tx.send(Ok(())).ok();
+                }
+                Err(e) => {
+                    tx.send(Err(e.to_string())).ok();
+                }
+            }
         });
 
         cx.spawn(
@@ -378,6 +505,33 @@ impl AppView {
                     s.databases = databases;
                     cx.notify();
                 });
+            }
+        })
+        .detach();
+    }
+
+    fn load_foreign_keys(
+        driver: Arc<dyn DatabaseDriver>,
+        database: String,
+        table: String,
+        view: Entity<TableView>,
+        cx: &mut Context<Self>,
+    ) {
+        let (tx, rx) =
+            tokio::sync::oneshot::channel::<Result<Vec<crate::db::types::ForeignKey>, String>>();
+        crate::db_runtime().spawn(async move {
+            match driver.foreign_keys(&database, &table).await {
+                Ok(fks) => {
+                    tx.send(Ok(fks)).ok();
+                }
+                Err(e) => {
+                    tx.send(Err(e.to_string())).ok();
+                }
+            }
+        });
+        cx.spawn(async move |_this: WeakEntity<AppView>, cx: &mut AsyncApp| {
+            if let Ok(Ok(fks)) = rx.await {
+                view.update(cx, |v, cx| v.set_foreign_keys(fks, cx));
             }
         })
         .detach();

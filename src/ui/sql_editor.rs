@@ -6,7 +6,10 @@ use unicode_segmentation::UnicodeSegmentation;
 
 actions!(
     sql_editor,
-    [Backspace, Delete, Left, Right, Up, Down, SelectAll, Home, End, Paste, Cut, Copy, Enter, Tab]
+    [
+        Backspace, Delete, Left, Right, Up, Down, SelectAll, Home, End, Paste, Cut, Copy, Enter,
+        Tab
+    ]
 );
 
 pub fn register_sql_editor_actions(cx: &mut App) {
@@ -59,7 +62,11 @@ impl SqlEditor {
     // ── content helpers ──────────────────────────────────────────────────────
 
     fn cursor_offset(&self) -> usize {
-        if self.selection_reversed { self.selected_range.start } else { self.selected_range.end }
+        if self.selection_reversed {
+            self.selected_range.start
+        } else {
+            self.selected_range.end
+        }
     }
 
     fn move_to(&mut self, offset: usize, cx: &mut Context<Self>) {
@@ -133,16 +140,21 @@ impl SqlEditor {
     }
 
     fn index_for_mouse_position(&self, position: Point<Pixels>) -> usize {
-        let Some(bounds) = self.last_bounds.as_ref() else { return 0 };
+        let Some(bounds) = self.last_bounds.as_ref() else {
+            return 0;
+        };
         let lh = self.last_line_height;
         let rel_y = (position.y - bounds.top()).max(px(0.));
         let lh_f = f32::from(lh);
         let line_idx = if lh_f > 0.0 {
-            ((f32::from(rel_y) / lh_f).floor() as usize).min(self.last_line_layouts.len().saturating_sub(1))
+            ((f32::from(rel_y) / lh_f).floor() as usize)
+                .min(self.last_line_layouts.len().saturating_sub(1))
         } else {
             0
         };
-        let Some((start_offset, line)) = self.last_line_layouts.get(line_idx) else { return 0 };
+        let Some((start_offset, line)) = self.last_line_layouts.get(line_idx) else {
+            return 0;
+        };
         let rel_x = (position.x - bounds.left()).max(px(0.));
         start_offset + line.closest_index_for_x(rel_x)
     }
@@ -153,7 +165,9 @@ impl SqlEditor {
         let mut utf8_offset = 0;
         let mut utf16_count = 0;
         for ch in self.content.chars() {
-            if utf16_count >= offset { break; }
+            if utf16_count >= offset {
+                break;
+            }
             utf16_count += ch.len_utf16();
             utf8_offset += ch.len_utf8();
         }
@@ -164,7 +178,9 @@ impl SqlEditor {
         let mut utf16_offset = 0;
         let mut utf8_count = 0;
         for ch in self.content.chars() {
-            if utf8_count >= offset { break; }
+            if utf8_count >= offset {
+                break;
+            }
             utf8_count += ch.len_utf8();
             utf16_offset += ch.len_utf16();
         }
@@ -184,7 +200,9 @@ impl SqlEditor {
     fn on_backspace(&mut self, _: &Backspace, window: &mut Window, cx: &mut Context<Self>) {
         if self.selected_range.is_empty() {
             let prev = self.previous_boundary(self.cursor_offset());
-            if self.cursor_offset() == prev { return; }
+            if self.cursor_offset() == prev {
+                return;
+            }
             self.select_to(prev, cx);
         }
         self.replace_text_in_range(None, "", window, cx);
@@ -193,7 +211,9 @@ impl SqlEditor {
     fn on_delete(&mut self, _: &Delete, window: &mut Window, cx: &mut Context<Self>) {
         if self.selected_range.is_empty() {
             let next = self.next_boundary(self.cursor_offset());
-            if self.cursor_offset() == next { return; }
+            if self.cursor_offset() == next {
+                return;
+            }
             self.select_to(next, cx);
         }
         self.replace_text_in_range(None, "", window, cx);
@@ -217,7 +237,10 @@ impl SqlEditor {
 
     fn on_up(&mut self, _: &Up, _: &mut Window, cx: &mut Context<Self>) {
         let (line_idx, col, _) = self.cursor_line_col();
-        if line_idx == 0 { self.move_to(0, cx); return; }
+        if line_idx == 0 {
+            self.move_to(0, cx);
+            return;
+        }
         let new_offset = self.offset_at_line_col(line_idx - 1, col);
         self.move_to(new_offset, cx);
     }
@@ -225,7 +248,10 @@ impl SqlEditor {
     fn on_down(&mut self, _: &Down, _: &mut Window, cx: &mut Context<Self>) {
         let count = self.content.split('\n').count();
         let (line_idx, col, _) = self.cursor_line_col();
-        if line_idx >= count - 1 { self.move_to(self.content.len(), cx); return; }
+        if line_idx >= count - 1 {
+            self.move_to(self.content.len(), cx);
+            return;
+        }
         let new_offset = self.offset_at_line_col(line_idx + 1, col);
         self.move_to(new_offset, cx);
     }
@@ -237,7 +263,12 @@ impl SqlEditor {
 
     fn on_end(&mut self, _: &End, _: &mut Window, cx: &mut Context<Self>) {
         let (line_idx, _, line_start) = self.cursor_line_col();
-        let line_len = self.content.split('\n').nth(line_idx).map(|l| l.len()).unwrap_or(0);
+        let line_len = self
+            .content
+            .split('\n')
+            .nth(line_idx)
+            .map(|l| l.len())
+            .unwrap_or(0);
         self.move_to(line_start + line_len, cx);
     }
 
@@ -302,8 +333,11 @@ impl SqlEditor {
 
 impl EntityInputHandler for SqlEditor {
     fn text_for_range(
-        &mut self, range_utf16: Range<usize>, actual_range: &mut Option<Range<usize>>,
-        _: &mut Window, _: &mut Context<Self>,
+        &mut self,
+        range_utf16: Range<usize>,
+        actual_range: &mut Option<Range<usize>>,
+        _: &mut Window,
+        _: &mut Context<Self>,
     ) -> Option<String> {
         let range = self.range_from_utf16(&range_utf16);
         actual_range.replace(self.range_to_utf16(&range));
@@ -311,7 +345,10 @@ impl EntityInputHandler for SqlEditor {
     }
 
     fn selected_text_range(
-        &mut self, _ignore_disabled_input: bool, _: &mut Window, _: &mut Context<Self>,
+        &mut self,
+        _ignore_disabled_input: bool,
+        _: &mut Window,
+        _: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
         Some(UTF16Selection {
             range: self.range_to_utf16(&self.selected_range),
@@ -328,8 +365,11 @@ impl EntityInputHandler for SqlEditor {
     }
 
     fn replace_text_in_range(
-        &mut self, range_utf16: Option<Range<usize>>, new_text: &str,
-        _: &mut Window, cx: &mut Context<Self>,
+        &mut self,
+        range_utf16: Option<Range<usize>>,
+        new_text: &str,
+        _: &mut Window,
+        cx: &mut Context<Self>,
     ) {
         let range = range_utf16
             .as_ref()
@@ -338,15 +378,20 @@ impl EntityInputHandler for SqlEditor {
             .unwrap_or_else(|| self.selected_range.clone());
 
         self.content =
-            (self.content[0..range.start].to_owned() + new_text + &self.content[range.end..]).into();
+            (self.content[0..range.start].to_owned() + new_text + &self.content[range.end..])
+                .into();
         self.selected_range = range.start + new_text.len()..range.start + new_text.len();
         self.marked_range = None;
         cx.notify();
     }
 
     fn replace_and_mark_text_in_range(
-        &mut self, range_utf16: Option<Range<usize>>, new_text: &str,
-        new_selected_range_utf16: Option<Range<usize>>, _: &mut Window, cx: &mut Context<Self>,
+        &mut self,
+        range_utf16: Option<Range<usize>>,
+        new_text: &str,
+        new_selected_range_utf16: Option<Range<usize>>,
+        _: &mut Window,
+        cx: &mut Context<Self>,
     ) {
         let range = range_utf16
             .as_ref()
@@ -355,7 +400,8 @@ impl EntityInputHandler for SqlEditor {
             .unwrap_or_else(|| self.selected_range.clone());
 
         self.content =
-            (self.content[0..range.start].to_owned() + new_text + &self.content[range.end..]).into();
+            (self.content[0..range.start].to_owned() + new_text + &self.content[range.end..])
+                .into();
         self.marked_range = if !new_text.is_empty() {
             Some(range.start..range.start + new_text.len())
         } else {
@@ -370,8 +416,11 @@ impl EntityInputHandler for SqlEditor {
     }
 
     fn bounds_for_range(
-        &mut self, range_utf16: Range<usize>, _bounds: Bounds<Pixels>,
-        _: &mut Window, _: &mut Context<Self>,
+        &mut self,
+        range_utf16: Range<usize>,
+        _bounds: Bounds<Pixels>,
+        _: &mut Window,
+        _: &mut Context<Self>,
     ) -> Option<Bounds<Pixels>> {
         let range = self.range_from_utf16(&range_utf16);
         let (line_idx, col, _) = {
@@ -380,7 +429,10 @@ impl EntityInputHandler for SqlEditor {
             let mut found = (0, 0, 0);
             for (i, line) in self.content.split('\n').enumerate() {
                 let le = ls + line.len();
-                if cursor <= le { found = (i, cursor - ls, ls); break; }
+                if cursor <= le {
+                    found = (i, cursor - ls, ls);
+                    break;
+                }
                 ls = le + 1;
             }
             found
@@ -390,11 +442,17 @@ impl EntityInputHandler for SqlEditor {
         let bounds = self.last_bounds?;
         let x = bounds.left() + line.x_for_index(col);
         let y = bounds.top() + self.last_line_height * line_idx as f32;
-        Some(Bounds::new(point(x, y), size(px(1.), self.last_line_height)))
+        Some(Bounds::new(
+            point(x, y),
+            size(px(1.), self.last_line_height),
+        ))
     }
 
     fn character_index_for_point(
-        &mut self, pt: Point<Pixels>, _: &mut Window, _: &mut Context<Self>,
+        &mut self,
+        pt: Point<Pixels>,
+        _: &mut Window,
+        _: &mut Context<Self>,
     ) -> Option<usize> {
         Some(self.offset_to_utf16(self.index_for_mouse_position(pt)))
     }
@@ -442,13 +500,20 @@ impl Render for SqlEditor {
             .text_size(px(13.))
             .text_color(rgb(0xcdd6f4))
             .font_family("monospace")
-            .child(SqlEditorElement { editor: cx.entity(), show_placeholder: is_empty })
+            .child(SqlEditorElement {
+                editor: cx.entity(),
+                show_placeholder: is_empty,
+            })
     }
 }
 
 #[allow(dead_code)]
 fn when<E: IntoElement>(cond: bool, f: impl FnOnce() -> E) -> Option<E> {
-    if cond { Some(f()) } else { None }
+    if cond {
+        Some(f())
+    } else {
+        None
+    }
 }
 
 // ── Custom element ────────────────────────────────────────────────────────────
@@ -467,19 +532,28 @@ struct SqlEditorPrepaint {
 
 impl IntoElement for SqlEditorElement {
     type Element = Self;
-    fn into_element(self) -> Self { self }
+    fn into_element(self) -> Self {
+        self
+    }
 }
 
 impl Element for SqlEditorElement {
     type RequestLayoutState = ();
     type PrepaintState = SqlEditorPrepaint;
 
-    fn id(&self) -> Option<ElementId> { None }
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> { None }
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
 
     fn request_layout(
-        &mut self, _id: Option<&GlobalElementId>, _inspector_id: Option<&InspectorElementId>,
-        window: &mut Window, cx: &mut App,
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
     ) -> (LayoutId, ()) {
         let editor = self.editor.read(cx);
         let line_count = editor.content.split('\n').count().max(1) as f32;
@@ -491,8 +565,13 @@ impl Element for SqlEditorElement {
     }
 
     fn prepaint(
-        &mut self, _id: Option<&GlobalElementId>, _inspector_id: Option<&InspectorElementId>,
-        bounds: Bounds<Pixels>, _: &mut (), window: &mut Window, cx: &mut App,
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
     ) -> SqlEditorPrepaint {
         let editor = self.editor.read(cx);
         let content = editor.content.clone();
@@ -569,13 +648,23 @@ impl Element for SqlEditorElement {
             }
         };
 
-        SqlEditorPrepaint { line_layouts, line_height: lh, cursor, selection_quads }
+        SqlEditorPrepaint {
+            line_layouts,
+            line_height: lh,
+            cursor,
+            selection_quads,
+        }
     }
 
     fn paint(
-        &mut self, _id: Option<&GlobalElementId>, _inspector_id: Option<&InspectorElementId>,
-        bounds: Bounds<Pixels>, _: &mut (), prepaint: &mut SqlEditorPrepaint,
-        window: &mut Window, cx: &mut App,
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        _: &mut (),
+        prepaint: &mut SqlEditorPrepaint,
+        window: &mut Window,
+        cx: &mut App,
     ) {
         let focus_handle = self.editor.read(cx).focus_handle.clone();
         window.handle_input(
@@ -601,12 +690,17 @@ impl Element for SqlEditorElement {
                 underline: None,
                 strikethrough: None,
             };
-            let shaped = window.text_system().shape_line(placeholder, font_size, &[run], None);
-            shaped.paint(bounds.origin, lh, TextAlign::Left, None, window, cx).ok();
+            let shaped = window
+                .text_system()
+                .shape_line(placeholder, font_size, &[run], None);
+            shaped
+                .paint(bounds.origin, lh, TextAlign::Left, None, window, cx)
+                .ok();
         } else {
             for (i, (_offset, line)) in prepaint.line_layouts.iter().enumerate() {
                 let origin = point(bounds.left(), bounds.top() + lh * i as f32);
-                line.paint(origin, lh, TextAlign::Left, None, window, cx).ok();
+                line.paint(origin, lh, TextAlign::Left, None, window, cx)
+                    .ok();
             }
         }
 
