@@ -146,6 +146,9 @@ impl TableView {
         self.pending_edits.clear();
         self.editing_cell = None;
         self.save_error = None;
+        self.new_row_active = false;
+        self.new_row_edits.clear();
+        self.editing_new_row_col = None;
         cx.notify();
     }
 
