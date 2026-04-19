@@ -72,6 +72,7 @@ pub struct TableView {
     page_jump_field: Entity<TextField>,
 
     scroll_handle: ScrollHandle,
+    pub foreign_keys: Vec<crate::db::types::ForeignKey>,
 }
 
 impl TableView {
@@ -99,6 +100,7 @@ impl TableView {
             save_error: None,
             page_jump_field: cx.new(|cx| TextField::new(cx, "#")),  // page number input
             scroll_handle: ScrollHandle::new(),
+            foreign_keys: vec![],
         }
     }
 
@@ -123,6 +125,11 @@ impl TableView {
     pub fn set_error(&mut self, error: String, cx: &mut Context<Self>) {
         self.error = Some(error);
         self.loading = false;
+        cx.notify();
+    }
+
+    pub fn set_foreign_keys(&mut self, fks: Vec<crate::db::types::ForeignKey>, cx: &mut Context<Self>) {
+        self.foreign_keys = fks;
         cx.notify();
     }
 

@@ -203,7 +203,8 @@ impl AppView {
             .driver()
             .map(|d| d.dialect())
             .unwrap_or(Dialect::MySql);
-        AppView::query_table(driver, database, table, vec![], dialect, 0, view, cx);
+        AppView::query_table(driver.clone(), database.clone(), table.clone(), vec![], dialect, 0, view.clone(), cx);
+        AppView::load_foreign_keys(driver, database, table, view, cx);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -378,6 +379,29 @@ impl AppView {
                     s.databases = databases;
                     cx.notify();
                 });
+            }
+        })
+        .detach();
+    }
+
+    fn load_foreign_keys(
+        driver: Arc<dyn DatabaseDriver>,
+        database: String,
+        table: String,
+        view: Entity<TableView>,
+        cx: &mut Context<Self>,
+    ) {
+        let (tx, rx) =
+            tokio::sync::oneshot::channel::<Result<Vec<crate::db::types::ForeignKey>, String>>();
+        crate::db_runtime().spawn(async move {
+            match driver.foreign_keys(&database, &table).await {
+                Ok(fks) => { tx.send(Ok(fks)).ok(); }
+                Err(e) => { tx.send(Err(e.to_string())).ok(); }
+            }
+        });
+        cx.spawn(async move |_this: WeakEntity<AppView>, cx: &mut AsyncApp| {
+            if let Ok(Ok(fks)) = rx.await {
+                view.update(cx, |v, cx| v.set_foreign_keys(fks, cx));
             }
         })
         .detach();
