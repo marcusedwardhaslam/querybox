@@ -37,6 +37,13 @@ pub enum TableViewEvent {
     FiltersChanged,
     PageChanged,
     SaveChanges(Vec<RowUpdate>),
+    #[allow(dead_code)]
+    NavigateToFk {
+        database: String,
+        table: String,
+        column: String,
+        value: crate::db::types::Value,
+    },
 }
 
 impl EventEmitter<TableViewEvent> for TableView {}
@@ -882,7 +889,7 @@ impl TableView {
                 } else {
                     let display = pending_value.clone().unwrap_or_else(|| val.to_string());
                     let color = if pending_value.is_some() {
-                        rgb(0xf9e2af) // amber — pending change
+                        rgb(0xf9e2af)
                     } else {
                         match val {
                             Value::Null => rgb(0x6c7086),
@@ -892,12 +899,23 @@ impl TableView {
                             _ => rgb(0xcdd6f4),
                         }
                     };
-                    div()
+
+                    let col_name = self.columns.get(col_idx).map(|c| c.name.clone()).unwrap_or_default();
+                    let fk_info = self
+                        .foreign_keys
+                        .iter()
+                        .find(|fk| fk.column == col_name)
+                        .map(|fk| (fk.ref_database.clone(), fk.ref_table.clone(), fk.ref_column.clone()));
+
+                    let mut cell_div = div()
                         .id(ElementId::Integer(
                             200000 + row_idx as u64 * 500 + col_idx as u64,
                         ))
                         .w(px(150.))
                         .flex_shrink_0()
+                        .flex()
+                        .flex_row()
+                        .items_center()
                         .px(px(12.))
                         .py(px(6.))
                         .text_size(px(12.))
@@ -911,8 +929,35 @@ impl TableView {
                                 window.focus(&fh, cx);
                             }
                         }))
-                        .child(display)
-                        .into_any_element()
+                        .child(div().flex_1().overflow_hidden().child(display));
+
+                    if let Some((ref_database, ref_table, ref_column)) = fk_info {
+                        let val_for_fk = val.clone();
+                        cell_div = cell_div.child(
+                            div()
+                                .id(ElementId::Integer(
+                                    300000 + row_idx as u64 * 500 + col_idx as u64,
+                                ))
+                                .flex_shrink_0()
+                                .ml(px(2.))
+                                .px(px(4.))
+                                .py(px(1.))
+                                .text_size(px(10.))
+                                .text_color(rgb(0x89b4fa))
+                                .cursor_pointer()
+                                .on_click(cx.listener(move |_this, _event: &ClickEvent, _window, cx| {
+                                    cx.emit(TableViewEvent::NavigateToFk {
+                                        database: ref_database.clone(),
+                                        table: ref_table.clone(),
+                                        column: ref_column.clone(),
+                                        value: val_for_fk.clone(),
+                                    });
+                                }))
+                                .child("→"),
+                        );
+                    }
+
+                    cell_div.into_any_element()
                 };
 
                 row_el = row_el.child(cell);

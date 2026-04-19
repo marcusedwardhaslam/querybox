@@ -193,6 +193,7 @@ impl AppView {
                         AppView::save_and_reload(driver, updates, view2.clone(), cx);
                     }
                 }
+                TableViewEvent::NavigateToFk { .. } => {}
             },
         )
         .detach();
