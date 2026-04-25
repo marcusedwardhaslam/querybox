@@ -592,19 +592,15 @@ impl Element for SqlEditorElement {
         let mut line_layouts = vec![];
         let mut line_start = 0usize;
 
+        let highlight_spans = crate::query::highlight::highlight(&content);
+        let default_color = style.color;
+
         for raw_line in content.split('\n') {
             let display: SharedString = raw_line.to_string().into();
-            let run = TextRun {
-                len: display.len(),
-                font: style.font(),
-                color: style.color,
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            };
+            let runs = build_text_runs(raw_line, line_start, &highlight_spans, &style, default_color);
             let shaped = window
                 .text_system()
-                .shape_line(display.clone(), font_size, &[run], None);
+                .shape_line(display.clone(), font_size, &runs, None);
             line_layouts.push((line_start, shaped));
             line_start += raw_line.len() + 1; // +1 for '\n'
         }
@@ -725,4 +721,71 @@ impl Element for SqlEditorElement {
             editor.last_line_height = lh;
         });
     }
+}
+
+fn build_text_runs(
+    line_text: &str,
+    line_start: usize,
+    spans: &[(std::ops::Range<usize>, gpui::Rgba)],
+    style: &gpui::TextStyle,
+    default_color: gpui::Hsla,
+) -> Vec<gpui::TextRun> {
+    let line_end = line_start + line_text.len();
+    let mut runs: Vec<gpui::TextRun> = Vec::new();
+    let mut pos = 0usize; // byte position within line_text
+
+    for (range, color) in spans {
+        let span_start = range.start.max(line_start);
+        let span_end = range.end.min(line_end);
+        if span_start >= span_end {
+            continue;
+        }
+        let local_start = span_start - line_start;
+        let local_end = span_end - line_start;
+
+        if local_start > pos {
+            runs.push(gpui::TextRun {
+                len: local_start - pos,
+                font: style.font(),
+                color: default_color,
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            });
+        }
+        runs.push(gpui::TextRun {
+            len: local_end - local_start,
+            font: style.font(),
+            color: (*color).into(),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        });
+        pos = local_end;
+    }
+
+    if pos < line_text.len() {
+        runs.push(gpui::TextRun {
+            len: line_text.len() - pos,
+            font: style.font(),
+            color: default_color,
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        });
+    }
+
+    // Empty line: one zero-length run so shape_line gets a valid (empty) slice.
+    if runs.is_empty() {
+        runs.push(gpui::TextRun {
+            len: 0,
+            font: style.font(),
+            color: default_color,
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        });
+    }
+
+    runs
 }
