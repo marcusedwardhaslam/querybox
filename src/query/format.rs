@@ -7,10 +7,8 @@ pub fn format_sql(sql: &str) -> Result<String, String> {
         return Ok(String::new());
     }
     let dialect = GenericDialect {};
-    let statements =
-        Parser::parse_sql(&dialect, sql).map_err(|e| e.to_string())?;
-    let formatted: Vec<String> =
-        statements.iter().map(format_statement).collect();
+    let statements = Parser::parse_sql(&dialect, sql).map_err(|e| e.to_string())?;
+    let formatted: Vec<String> = statements.iter().map(format_statement).collect();
     Ok(formatted.join("\n\n"))
 }
 
@@ -96,8 +94,7 @@ fn format_select(select: &Select) -> String {
 
     match &select.group_by {
         GroupByExpr::Expressions(exprs, _) if !exprs.is_empty() => {
-            let items: Vec<String> =
-                exprs.iter().map(|e| format!("    {e}")).collect();
+            let items: Vec<String> = exprs.iter().map(|e| format!("    {e}")).collect();
             parts.push(format!("GROUP BY\n{}", items.join(",\n")));
         }
         _ => {}
@@ -296,10 +293,8 @@ mod tests {
 
     #[test]
     fn test_join_on() {
-        let out = format_sql(
-            "select u.id from users as u join orders as o on o.user_id = u.id",
-        )
-        .unwrap();
+        let out =
+            format_sql("select u.id from users as u join orders as o on o.user_id = u.id").unwrap();
         assert!(
             out.contains("JOIN orders AS o\n    ON o.user_id = u.id"),
             "actual output:\n{out}"
@@ -308,17 +303,19 @@ mod tests {
 
     #[test]
     fn test_left_join() {
-        let out = format_sql(
-            "select u.id from users as u left join orders as o on o.user_id = u.id",
-        )
-        .unwrap();
+        let out =
+            format_sql("select u.id from users as u left join orders as o on o.user_id = u.id")
+                .unwrap();
         assert!(out.contains("LEFT JOIN"), "actual output:\n{out}");
     }
 
     #[test]
     fn test_order_by() {
         let out = format_sql("select id from users order by id desc").unwrap();
-        assert!(out.contains("ORDER BY\n    id DESC"), "actual output:\n{out}");
+        assert!(
+            out.contains("ORDER BY\n    id DESC"),
+            "actual output:\n{out}"
+        );
     }
 
     #[test]
@@ -329,11 +326,13 @@ mod tests {
 
     #[test]
     fn test_group_by_having() {
-        let out = format_sql(
-            "select user_id, count(*) from orders group by user_id having count(*) > 5",
-        )
-        .unwrap();
-        assert!(out.contains("GROUP BY\n    user_id"), "actual output:\n{out}");
+        let out =
+            format_sql("select user_id, count(*) from orders group by user_id having count(*) > 5")
+                .unwrap();
+        assert!(
+            out.contains("GROUP BY\n    user_id"),
+            "actual output:\n{out}"
+        );
         assert!(out.contains("HAVING"), "actual output:\n{out}");
     }
 
