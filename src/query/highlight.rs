@@ -205,6 +205,6 @@ mod tests {
         // Unterminated string literal triggers a tokenizer error
         let result = highlight("SELECT 'unterminated");
         // Must not panic; graceful empty fallback
-        let _ = result;
+        assert!(result.is_empty(), "expected empty spans on tokenizer error");
     }
 }
