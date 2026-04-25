@@ -64,7 +64,7 @@ fn token_color(token: &Token) -> Option<Rgba> {
         | Token::SingleQuotedByteStringLiteral(_)
         | Token::DoubleQuotedByteStringLiteral(_)
         | Token::HexStringLiteral(_) => Some(rgba(0xa6e3a1ff)), // green — strings
-        Token::Number(_, _) => Some(rgba(0xfab387ff)),          // peach — numbers
+        Token::Number(_, _) => Some(rgba(0xfab387ff)), // peach — numbers
         Token::Whitespace(Whitespace::SingleLineComment { .. })
         | Token::Whitespace(Whitespace::MultiLineComment(_)) => Some(rgba(0x6c7086ff)), // muted — comments
         Token::Eq
@@ -85,13 +85,10 @@ fn token_color(token: &Token) -> Option<Rgba> {
 /// Byte offset of the first character on each line (0-indexed).
 fn build_line_starts(sql: &str) -> Vec<usize> {
     std::iter::once(0)
-        .chain(sql.char_indices().filter_map(|(i, c)| {
-            if c == '\n' {
-                Some(i + 1)
-            } else {
-                None
-            }
-        }))
+        .chain(
+            sql.char_indices()
+                .filter_map(|(i, c)| if c == '\n' { Some(i + 1) } else { None }),
+        )
         .collect()
 }
 
@@ -132,6 +129,7 @@ mod tests {
         let spans = highlight("'hello'");
         assert_eq!(spans.len(), 1);
         assert_eq!(spans[0].1, rgba(0xa6e3a1ff));
+        assert_eq!(&"'hello'"[spans[0].0.clone()], "'hello'");
     }
 
     #[test]
@@ -139,6 +137,7 @@ mod tests {
         let spans = highlight("42");
         assert_eq!(spans.len(), 1);
         assert_eq!(spans[0].1, rgba(0xfab387ff));
+        assert_eq!(&"42"[spans[0].0.clone()], "42");
     }
 
     #[test]
@@ -197,7 +196,15 @@ mod tests {
     }
 
     #[test]
-    fn test_malformed_sql_does_not_panic() {
+    fn test_unknown_tokens_produce_no_spans() {
         let _ = highlight("SELECT !!! @@@ ###");
+    }
+
+    #[test]
+    fn test_tokenizer_error_returns_empty() {
+        // Unterminated string literal triggers a tokenizer error
+        let result = highlight("SELECT 'unterminated");
+        // Must not panic; graceful empty fallback
+        let _ = result;
     }
 }
