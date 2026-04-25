@@ -4,6 +4,8 @@ use gpui::prelude::FluentBuilder;
 use gpui::*;
 use unicode_segmentation::UnicodeSegmentation;
 
+use crate::query::highlight;
+
 actions!(
     sql_editor,
     [
@@ -592,12 +594,19 @@ impl Element for SqlEditorElement {
         let mut line_layouts = vec![];
         let mut line_start = 0usize;
 
-        let highlight_spans = crate::query::highlight::highlight(&content);
+        // Spans are recomputed every prepaint; fast enough for typical SQL lengths.
+        let highlight_spans = highlight::highlight(&content);
         let default_color = style.color;
 
         for raw_line in content.split('\n') {
             let display: SharedString = raw_line.to_string().into();
-            let runs = build_text_runs(raw_line, line_start, &highlight_spans, &style, default_color);
+            let runs = build_text_runs(
+                raw_line,
+                line_start,
+                &highlight_spans,
+                style.font(),
+                default_color,
+            );
             let shaped = window
                 .text_system()
                 .shape_line(display.clone(), font_size, &runs, None);
@@ -723,11 +732,11 @@ impl Element for SqlEditorElement {
     }
 }
 
-fn build_text_runs(
+pub(crate) fn build_text_runs(
     line_text: &str,
     line_start: usize,
     spans: &[(std::ops::Range<usize>, gpui::Rgba)],
-    style: &gpui::TextStyle,
+    font: gpui::Font,
     default_color: gpui::Hsla,
 ) -> Vec<gpui::TextRun> {
     let line_end = line_start + line_text.len();
@@ -743,10 +752,16 @@ fn build_text_runs(
         let local_start = span_start - line_start;
         let local_end = span_end - line_start;
 
+        debug_assert!(
+            local_start >= pos,
+            "spans must be non-overlapping and ordered by start; \
+             got local_start={local_start} but pos={pos}"
+        );
+
         if local_start > pos {
             runs.push(gpui::TextRun {
                 len: local_start - pos,
-                font: style.font(),
+                font: font.clone(),
                 color: default_color,
                 background_color: None,
                 underline: None,
@@ -755,7 +770,7 @@ fn build_text_runs(
         }
         runs.push(gpui::TextRun {
             len: local_end - local_start,
-            font: style.font(),
+            font: font.clone(),
             color: (*color).into(),
             background_color: None,
             underline: None,
@@ -767,7 +782,7 @@ fn build_text_runs(
     if pos < line_text.len() {
         runs.push(gpui::TextRun {
             len: line_text.len() - pos,
-            font: style.font(),
+            font: font.clone(),
             color: default_color,
             background_color: None,
             underline: None,
@@ -779,7 +794,7 @@ fn build_text_runs(
     if runs.is_empty() {
         runs.push(gpui::TextRun {
             len: 0,
-            font: style.font(),
+            font: font.clone(),
             color: default_color,
             background_color: None,
             underline: None,
@@ -788,4 +803,92 @@ fn build_text_runs(
     }
 
     runs
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_text_runs;
+    use gpui::{black, rgba, Font, Hsla, Rgba};
+
+    fn default_font() -> Font {
+        Font::default()
+    }
+
+    fn default_color() -> Hsla {
+        black()
+    }
+
+    #[test]
+    fn test_build_text_runs_empty_line() {
+        let runs = build_text_runs("", 0, &[], default_font(), default_color());
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].len, 0);
+    }
+
+    #[test]
+    fn test_build_text_runs_no_spans() {
+        let runs = build_text_runs("hello", 0, &[], default_font(), default_color());
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].len, 5);
+        assert_eq!(runs[0].color, default_color());
+    }
+
+    #[test]
+    fn test_build_text_runs_single_span_full_line() {
+        let blue: Rgba = rgba(0x89b4faff);
+        let spans = vec![(0..5, blue)];
+        let runs = build_text_runs("hello", 0, &spans, default_font(), default_color());
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].len, 5);
+        assert_eq!(runs[0].color, blue.into());
+    }
+
+    #[test]
+    fn test_build_text_runs_span_with_gap_before_and_after() {
+        // line: "  hi  " (6 bytes), span covers bytes 2..4
+        let blue: Rgba = rgba(0x89b4faff);
+        let spans = vec![(2..4, blue)];
+        let runs = build_text_runs("  hi  ", 0, &spans, default_font(), default_color());
+        assert_eq!(runs.len(), 3);
+        assert_eq!(runs[0].len, 2); // gap before
+        assert_eq!(runs[0].color, default_color());
+        assert_eq!(runs[1].len, 2); // span
+        assert_eq!(runs[1].color, blue.into());
+        assert_eq!(runs[2].len, 2); // gap after
+        assert_eq!(runs[2].color, default_color());
+        assert_eq!(runs.iter().map(|r| r.len).sum::<usize>(), 6);
+    }
+
+    #[test]
+    fn test_build_text_runs_span_on_second_line() {
+        // Full content: "ab\ncd" — second line "cd" starts at byte 3
+        // A span covering bytes 3..5 (= "cd") should color the full line
+        let green: Rgba = rgba(0xa6e3a1ff);
+        let spans = vec![(3..5, green)];
+        let runs = build_text_runs("cd", 3, &spans, default_font(), default_color());
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].len, 2);
+        assert_eq!(runs[0].color, green.into());
+    }
+
+    #[test]
+    fn test_build_text_runs_span_clipped_to_line() {
+        // Span covers bytes 0..10 but line is only 5 bytes
+        let blue: Rgba = rgba(0x89b4faff);
+        let spans = vec![(0..10, blue)];
+        let runs = build_text_runs("hello", 0, &spans, default_font(), default_color());
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].len, 5);
+        assert_eq!(runs.iter().map(|r| r.len).sum::<usize>(), 5);
+    }
+
+    #[test]
+    fn test_build_text_runs_lens_sum_to_line_len() {
+        let blue: Rgba = rgba(0x89b4faff);
+        let green: Rgba = rgba(0xa6e3a1ff);
+        // "SELECT 42" — span 0..6 (keyword), span 7..9 (number)
+        let spans = vec![(0..6, blue), (7..9, green)];
+        let runs = build_text_runs("SELECT 42", 0, &spans, default_font(), default_color());
+        assert_eq!(runs.iter().map(|r| r.len).sum::<usize>(), 9);
+    }
 }
