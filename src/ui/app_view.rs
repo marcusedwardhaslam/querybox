@@ -334,11 +334,19 @@ impl AppView {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
         crate::db_runtime().spawn(async move {
             for update in &updates {
-                let set_clauses: Vec<String> = update
-                    .edits
-                    .iter()
-                    .map(|e| format!("`{}` = ?", e.column.replace('`', "``")))
-                    .collect();
+                let mut set_clauses: Vec<String> = Vec::new();
+                let mut params: Vec<Value> = Vec::new();
+                for e in &update.edits {
+                    match &e.new_value {
+                        Value::RawSql(expr) => {
+                            set_clauses.push(format!("`{}` = {}", e.column.replace('`', "``"), expr));
+                        }
+                        other => {
+                            set_clauses.push(format!("`{}` = ?", e.column.replace('`', "``")));
+                            params.push(other.clone());
+                        }
+                    }
+                }
                 let where_clauses: Vec<String> = update
                     .pk_columns
                     .iter()
@@ -351,11 +359,6 @@ impl AppView {
                     set_clauses.join(", "),
                     where_clauses.join(" AND "),
                 );
-                let mut params: Vec<Value> = update
-                    .edits
-                    .iter()
-                    .map(|e| Value::String(e.new_value.clone()))
-                    .collect();
                 params.extend(update.pk_values.clone());
                 if let Err(e) = driver.execute(&sql, &params).await {
                     tx.send(Err(e.to_string())).ok();
@@ -416,12 +419,22 @@ impl AppView {
     ) {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
         crate::db_runtime().spawn(async move {
+            let mut placeholders: Vec<String> = Vec::new();
+            let mut params: Vec<Value> = Vec::new();
             let col_names: Vec<String> = insert
                 .column_values
                 .iter()
                 .map(|(col, _)| format!("`{}`", col.replace('`', "``")))
                 .collect();
-            let placeholders: Vec<&str> = insert.column_values.iter().map(|_| "?").collect();
+            for (_, v) in insert.column_values {
+                match v {
+                    Value::RawSql(expr) => placeholders.push(expr),
+                    other => {
+                        placeholders.push("?".to_string());
+                        params.push(other);
+                    }
+                }
+            }
             let sql = format!(
                 "INSERT INTO `{}`.`{}` ({}) VALUES ({})",
                 insert.database.replace('`', "``"),
@@ -429,7 +442,6 @@ impl AppView {
                 col_names.join(", "),
                 placeholders.join(", "),
             );
-            let params: Vec<Value> = insert.column_values.into_iter().map(|(_, v)| v).collect();
             match driver.execute(&sql, &params).await {
                 Ok(_) => {
                     tx.send(Ok(())).ok();
