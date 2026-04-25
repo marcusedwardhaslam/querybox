@@ -44,9 +44,11 @@ for filename, size in SIZES:
         f.write(png_bytes(size))
     print(f'  wrote {path} ({size}x{size})')
 
-subprocess.run(
-    ['iconutil', '-c', 'icns', iconset, '-o', 'assets/icons/icon.icns'],
-    check=True,
-)
-shutil.rmtree(iconset)
+try:
+    subprocess.run(
+        ['iconutil', '-c', 'icns', iconset, '-o', 'assets/icons/icon.icns'],
+        check=True,
+    )
+finally:
+    shutil.rmtree(iconset, ignore_errors=True)
 print('Done: assets/icons/icon.icns')

@@ -30,3 +30,4 @@ icon = ["assets/icons/icon.icns"]
 category = "public.app-category.developer-tools"
 short_description = "Free and open source SQL GUI"
 copyright = "Copyright 2026 Marcus Haslam. All rights reserved."
+minimum_system_version = "12.0"
