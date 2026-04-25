@@ -4,7 +4,7 @@ use gpui::prelude::FluentBuilder;
 use gpui::*;
 
 use super::text_field::TextField;
-use crate::db::types::{Column, QueryResult, Row, Value};
+use crate::db::types::{text_to_value, Column, QueryResult, Row, Value};
 use crate::query::filter::{Filter, FilterOp};
 
 actions!(table_view, [CommitEdit, CancelEdit, SaveEdits, GoToPage, InsertNewRow]);
@@ -22,7 +22,7 @@ pub fn register_table_view_actions(cx: &mut App) {
 #[derive(Clone, Debug)]
 pub struct CellEdit {
     pub column: String,
-    pub new_value: String,
+    pub new_value: Value,
 }
 
 #[derive(Clone, Debug)]
@@ -279,7 +279,7 @@ impl TableView {
                 .filter_map(|(col_idx, new_value)| {
                     self.columns.get(col_idx).map(|c| CellEdit {
                         column: c.name.clone(),
-                        new_value,
+                        new_value: text_to_value(&new_value),
                     })
                 })
                 .collect();
@@ -328,7 +328,7 @@ impl TableView {
             .filter_map(|(&col_idx, value)| {
                 self.columns
                     .get(col_idx)
-                    .map(|col| (col.name.clone(), crate::db::types::Value::String(value.clone())))
+                    .map(|col| (col.name.clone(), text_to_value(value)))
             })
             .collect();
         cx.emit(TableViewEvent::InsertRow(NewRowInsert {
