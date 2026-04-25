@@ -263,6 +263,8 @@ fn value_to_mysql(v: &Value) -> mysql_async::Value {
         Value::String(s) => mysql_async::Value::from(s.as_str()),
         Value::Bytes(b) => mysql_async::Value::from(b.as_slice()),
         Value::DateTime(dt) => mysql_async::Value::from(dt.format("%Y-%m-%d %H:%M:%S").to_string()),
+        // Safety: RawSql is created only by text_to_value() and is consumed
+        // by the SQL builders (execute_insert/save_and_reload) before params are bound.
         Value::RawSql(_) => unreachable!("RawSql is consumed before reaching the driver"),
     }
 }

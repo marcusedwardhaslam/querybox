@@ -16,6 +16,8 @@ fn to_rusqlite_value(v: &Value) -> rusqlite::types::Value {
         Value::String(s) => rusqlite::types::Value::Text(s.clone()),
         Value::Bytes(b) => rusqlite::types::Value::Blob(b.clone()),
         Value::DateTime(dt) => rusqlite::types::Value::Text(dt.to_string()),
+        // Safety: RawSql is created only by text_to_value() and is consumed
+        // by the SQL builders (execute_insert/save_and_reload) before params are bound.
         Value::RawSql(_) => unreachable!("RawSql is consumed before reaching the driver"),
     }
 }

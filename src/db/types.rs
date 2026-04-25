@@ -104,6 +104,11 @@ impl Dialect {
 }
 
 /// Returns true if `s` looks like a SQL expression rather than a literal value.
+///
+/// Uses a keyword list and a function-call heuristic. Known trade-off: strings
+/// like `"John (Jr)"` (starts with alpha, contains `(`, ends with `)`) will be
+/// detected as SQL expressions. This is accepted behaviour — users who need to
+/// store such strings can use the raw SQL editor.
 #[allow(dead_code)]
 pub fn is_sql_expression(s: &str) -> bool {
     let t = s.trim();

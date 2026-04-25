@@ -33,6 +33,7 @@ fn value_to_json(v: &crate::db::types::Value) -> serde_json::Value {
         Value::String(s) => json!(s),
         Value::Bytes(b) => json!(format!("<{} bytes>", b.len())),
         Value::DateTime(dt) => json!(dt.to_string()),
+        // Exported as the expression text; RawSql never appears in query results.
         Value::RawSql(expr) => json!(expr),
     }
 }
@@ -72,5 +73,12 @@ mod tests {
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0]["id"], 1);
         assert_eq!(parsed[0]["name"], "alice");
+    }
+
+    #[test]
+    fn test_json_raw_sql() {
+        let val = Value::RawSql("NOW()".into());
+        // RawSql is serialised as the expression text (export context only)
+        assert_eq!(value_to_json(&val), json!("NOW()"));
     }
 }

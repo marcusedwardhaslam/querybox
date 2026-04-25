@@ -70,4 +70,10 @@ mod tests {
         let val = Value::String("O'Brien".into());
         assert_eq!(sql_literal(&val), "'O''Brien'");
     }
+
+    #[test]
+    fn test_sql_literal_raw_sql() {
+        let val = Value::RawSql("NOW()".into());
+        assert_eq!(sql_literal(&val), "NOW()");
+    }
 }

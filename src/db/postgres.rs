@@ -212,6 +212,8 @@ fn to_pg_params(params: &[Value]) -> Vec<Box<dyn tokio_postgres::types::ToSql + 
                 Value::String(s) => Box::new(s.clone()),
                 Value::Bytes(b) => Box::new(b.clone()),
                 Value::DateTime(dt) => Box::new(dt.to_string()),
+                // Safety: RawSql is created only by text_to_value() and is consumed
+                // by the SQL builders (execute_insert/save_and_reload) before params are bound.
                 Value::RawSql(_) => unreachable!("RawSql is consumed before reaching the driver"),
             }
         })
