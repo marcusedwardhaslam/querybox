@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use super::sql_editor::SqlEditor;
 use crate::db::{types::QueryResult, types::Value, DatabaseDriver};
+use crate::query::format::format_sql;
 use crate::query::history::QueryHistory;
 
 pub struct EditorView {
@@ -49,6 +50,26 @@ impl EditorView {
         self.result = None;
         self.running = false;
         cx.notify();
+    }
+
+    fn format_query(&mut self, cx: &mut Context<Self>) {
+        let sql = self.editor.read(cx).content.to_string();
+        if sql.trim().is_empty() {
+            return;
+        }
+        match format_sql(&sql) {
+            Ok(formatted) => {
+                self.editor.update(cx, |editor, cx| {
+                    editor.set_content(formatted, cx);
+                });
+            }
+            Err(msg) => {
+                self.error = Some(msg);
+                self.result = None;
+                self.running = false;
+                cx.notify();
+            }
+        }
     }
 
     fn run_query(&mut self, cx: &mut Context<Self>) {
@@ -158,6 +179,9 @@ impl EditorView {
                             .py(px(4.))
                             .text_size(px(11.))
                             .cursor_pointer()
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.format_query(cx);
+                            }))
                             .child("Format"),
                     )
                     .child(div().flex_1())
