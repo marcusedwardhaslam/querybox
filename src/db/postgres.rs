@@ -212,7 +212,7 @@ fn to_pg_params(params: &[Value]) -> Vec<Box<dyn tokio_postgres::types::ToSql + 
                 Value::String(s) => Box::new(s.clone()),
                 Value::Bytes(b) => Box::new(b.clone()),
                 Value::DateTime(dt) => Box::new(dt.to_string()),
-                Value::RawSql(expr) => Box::new(expr.clone()),
+                Value::RawSql(_) => unreachable!("RawSql is consumed before reaching the driver"),
             }
         })
         .collect()
