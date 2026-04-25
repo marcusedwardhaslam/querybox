@@ -26,6 +26,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
+            ~/.cargo/bin
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
@@ -35,7 +36,9 @@ jobs:
         run: cargo install cargo-bundle --locked
 
       - name: Build app bundle
-        run: cargo bundle --release
+        run: |
+          cargo bundle --release
+          test -d "target/release/bundle/osx/QueryBox.app" || (echo "App bundle not found" && exit 1)
 
       - name: Create DMG
         run: |
