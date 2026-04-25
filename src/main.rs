@@ -1,4 +1,3 @@
-#![recursion_limit = "4096"]
 mod connection;
 mod db;
 mod export;
