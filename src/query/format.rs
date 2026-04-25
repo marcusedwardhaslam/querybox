@@ -1,7 +1,3 @@
-// The helper functions in this module are intentionally unused until Task 4
-// wires format_sql into EditorView.
-#![allow(dead_code)]
-
 use sqlparser::ast::*;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;

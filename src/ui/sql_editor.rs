@@ -59,6 +59,14 @@ impl SqlEditor {
         }
     }
 
+    pub fn set_content(&mut self, text: impl Into<SharedString>, cx: &mut Context<Self>) {
+        self.content = text.into();
+        self.selected_range = 0..0;
+        self.selection_reversed = false;
+        self.marked_range = None;
+        cx.notify();
+    }
+
     // ── content helpers ──────────────────────────────────────────────────────
 
     fn cursor_offset(&self) -> usize {
