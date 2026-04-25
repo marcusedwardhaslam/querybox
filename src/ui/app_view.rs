@@ -340,7 +340,11 @@ impl AppView {
                     match &e.new_value {
                         // Intentional: RawSql expressions are inlined directly — the user is operating their own DB.
                         Value::RawSql(expr) => {
-                            set_clauses.push(format!("`{}` = {}", e.column.replace('`', "``"), expr));
+                            set_clauses.push(format!(
+                                "`{}` = {}",
+                                e.column.replace('`', "``"),
+                                expr
+                            ));
                         }
                         other => {
                             set_clauses.push(format!("`{}` = ?", e.column.replace('`', "``")));

@@ -178,7 +178,10 @@ mod tests {
     fn test_text_to_value_sql() {
         assert_eq!(text_to_value("NOW()"), Value::RawSql("NOW()".to_string()));
         assert_eq!(text_to_value("NULL"), Value::RawSql("NULL".to_string()));
-        assert_eq!(text_to_value("  NOW()  "), Value::RawSql("NOW()".to_string()));
+        assert_eq!(
+            text_to_value("  NOW()  "),
+            Value::RawSql("NOW()".to_string())
+        );
     }
 
     #[test]

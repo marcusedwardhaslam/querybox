@@ -7,7 +7,10 @@ use super::text_field::TextField;
 use crate::db::types::{text_to_value, Column, QueryResult, Row, Value};
 use crate::query::filter::{Filter, FilterOp};
 
-actions!(table_view, [CommitEdit, CancelEdit, SaveEdits, GoToPage, InsertNewRow]);
+actions!(
+    table_view,
+    [CommitEdit, CancelEdit, SaveEdits, GoToPage, InsertNewRow]
+);
 
 pub fn register_table_view_actions(cx: &mut App) {
     cx.bind_keys([
@@ -557,8 +560,16 @@ impl TableView {
             .child(
                 div()
                     .id("new-row-btn")
-                    .bg(if self.new_row_active { rgb(0xa6e3a1) } else { rgb(0x313244) })
-                    .text_color(if self.new_row_active { rgb(0x1e1e2e) } else { rgb(0xa6adc8) })
+                    .bg(if self.new_row_active {
+                        rgb(0xa6e3a1)
+                    } else {
+                        rgb(0x313244)
+                    })
+                    .text_color(if self.new_row_active {
+                        rgb(0x1e1e2e)
+                    } else {
+                        rgb(0xa6adc8)
+                    })
                     .font_weight(if self.new_row_active {
                         FontWeight::SEMIBOLD
                     } else {
@@ -1158,7 +1169,11 @@ impl TableView {
                             this.editing_new_row_col = Some(col_idx);
                             this.new_row_dirty = true;
                             this.new_row_insert_error = None;
-                            let val = this.new_row_edits.get(&col_idx).cloned().unwrap_or_default();
+                            let val = this
+                                .new_row_edits
+                                .get(&col_idx)
+                                .cloned()
+                                .unwrap_or_default();
                             this.edit_field.update(cx, |f, cx| f.set_content(&val, cx));
                             let fh = this.edit_field.read(cx).focus_handle.clone();
                             window.focus(&fh, cx);
