@@ -29,3 +29,4 @@ identifier = "uk.co.marcusehaslam.querybox"
 icon = ["assets/icons/icon.icns"]
 category = "public.app-category.developer-tools"
 short_description = "Free and open source SQL GUI"
+copyright = "Copyright 2026 Marcus Haslam. All rights reserved."
