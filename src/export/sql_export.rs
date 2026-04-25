@@ -27,6 +27,7 @@ fn sql_literal(v: &Value) -> String {
         Value::String(s) => format!("'{}'", s.replace('\'', "''")),
         Value::Bytes(b) => format!("X'{}'", hex::encode(b)),
         Value::DateTime(dt) => format!("'{}'", dt.format("%Y-%m-%d %H:%M:%S")),
+        Value::RawSql(expr) => expr.clone(),
     }
 }
 

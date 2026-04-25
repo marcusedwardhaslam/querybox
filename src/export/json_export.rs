@@ -33,6 +33,7 @@ fn value_to_json(v: &crate::db::types::Value) -> serde_json::Value {
         Value::String(s) => json!(s),
         Value::Bytes(b) => json!(format!("<{} bytes>", b.len())),
         Value::DateTime(dt) => json!(dt.to_string()),
+        Value::RawSql(expr) => json!(expr),
     }
 }
 

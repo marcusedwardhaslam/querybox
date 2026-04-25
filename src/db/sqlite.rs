@@ -16,6 +16,7 @@ fn to_rusqlite_value(v: &Value) -> rusqlite::types::Value {
         Value::String(s) => rusqlite::types::Value::Text(s.clone()),
         Value::Bytes(b) => rusqlite::types::Value::Blob(b.clone()),
         Value::DateTime(dt) => rusqlite::types::Value::Text(dt.to_string()),
+        Value::RawSql(expr) => rusqlite::types::Value::Text(expr.clone()),
     }
 }
 

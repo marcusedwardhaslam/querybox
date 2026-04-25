@@ -263,6 +263,7 @@ fn value_to_mysql(v: &Value) -> mysql_async::Value {
         Value::String(s) => mysql_async::Value::from(s.as_str()),
         Value::Bytes(b) => mysql_async::Value::from(b.as_slice()),
         Value::DateTime(dt) => mysql_async::Value::from(dt.format("%Y-%m-%d %H:%M:%S").to_string()),
+        Value::RawSql(expr) => mysql_async::Value::from(expr.as_str()),
     }
 }
 

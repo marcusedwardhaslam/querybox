@@ -12,6 +12,7 @@ pub enum Value {
     String(String),
     Bytes(Vec<u8>),
     DateTime(NaiveDateTime),
+    RawSql(String),
 }
 
 impl fmt::Display for Value {
@@ -24,6 +25,7 @@ impl fmt::Display for Value {
             Value::String(s) => write!(f, "{}", s),
             Value::Bytes(b) => write!(f, "<{} bytes>", b.len()),
             Value::DateTime(dt) => write!(f, "{}", dt),
+            Value::RawSql(expr) => write!(f, "{}", expr),
         }
     }
 }
@@ -98,5 +100,85 @@ impl Dialect {
             Dialect::PostgreSql => format!("\"{}\"", name.replace('"', "\"\"")),
             Dialect::Sqlite => format!("\"{}\"", name.replace('"', "\"\"")),
         }
+    }
+}
+
+/// Returns true if `s` looks like a SQL expression rather than a literal value.
+#[allow(dead_code)]
+pub fn is_sql_expression(s: &str) -> bool {
+    let t = s.trim();
+    const KEYWORDS: &[&str] = &[
+        "NULL",
+        "DEFAULT",
+        "TRUE",
+        "FALSE",
+        "CURRENT_TIMESTAMP",
+        "CURRENT_DATE",
+        "CURRENT_TIME",
+    ];
+    if KEYWORDS.iter().any(|k| t.eq_ignore_ascii_case(k)) {
+        return true;
+    }
+    let first = t.chars().next();
+    matches!(first, Some(c) if c.is_ascii_alphabetic() || c == '_')
+        && t.contains('(')
+        && t.ends_with(')')
+}
+
+/// Convert user-typed text into the appropriate `Value`.
+#[allow(dead_code)]
+pub fn text_to_value(s: &str) -> Value {
+    if is_sql_expression(s) {
+        Value::RawSql(s.trim().to_string())
+    } else {
+        Value::String(s.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_sql_expression_keywords() {
+        assert!(is_sql_expression("NULL"));
+        assert!(is_sql_expression("null"));
+        assert!(is_sql_expression("  NULL  "));
+        assert!(is_sql_expression("DEFAULT"));
+        assert!(is_sql_expression("CURRENT_TIMESTAMP"));
+        assert!(is_sql_expression("current_date"));
+        assert!(is_sql_expression("TRUE"));
+        assert!(is_sql_expression("FALSE"));
+    }
+
+    #[test]
+    fn test_is_sql_expression_functions() {
+        assert!(is_sql_expression("NOW()"));
+        assert!(is_sql_expression("now()"));
+        assert!(is_sql_expression("UUID()"));
+        assert!(is_sql_expression("DATE_ADD(NOW(), INTERVAL 1 DAY)"));
+        assert!(is_sql_expression("COALESCE(NULL, 0)"));
+    }
+
+    #[test]
+    fn test_is_sql_expression_plain_strings() {
+        assert!(!is_sql_expression("hello"));
+        assert!(!is_sql_expression("123"));
+        assert!(!is_sql_expression("some text with spaces"));
+        assert!(!is_sql_expression(""));
+        assert!(!is_sql_expression("O'Brien"));
+    }
+
+    #[test]
+    fn test_text_to_value_sql() {
+        assert_eq!(text_to_value("NOW()"), Value::RawSql("NOW()".to_string()));
+        assert_eq!(text_to_value("NULL"), Value::RawSql("NULL".to_string()));
+        assert_eq!(text_to_value("  NOW()  "), Value::RawSql("NOW()".to_string()));
+    }
+
+    #[test]
+    fn test_text_to_value_string() {
+        assert_eq!(text_to_value("hello"), Value::String("hello".to_string()));
+        assert_eq!(text_to_value(""), Value::String("".to_string()));
     }
 }
