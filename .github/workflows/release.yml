@@ -31,14 +31,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Build release binary
-        run: cargo build --release --locked
+      - name: Install cargo-bundle
+        run: cargo install cargo-bundle --locked
 
-      - name: Rename binary
-        run: mv target/release/querybox ${{ matrix.artifact }}
+      - name: Build app bundle
+        run: cargo bundle --release
+
+      - name: Create DMG
+        run: |
+          hdiutil create \
+            -volname QueryBox \
+            -srcfolder "target/release/bundle/osx/QueryBox.app" \
+            -ov \
+            -format UDZO \
+            ${{ matrix.artifact }}.dmg
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.artifact }}
+          files: ${{ matrix.artifact }}.dmg
           generate_release_notes: true
