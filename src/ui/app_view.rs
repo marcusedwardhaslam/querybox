@@ -338,6 +338,7 @@ impl AppView {
                 let mut params: Vec<Value> = Vec::new();
                 for e in &update.edits {
                     match &e.new_value {
+                        // Intentional: RawSql expressions are inlined directly — the user is operating their own DB.
                         Value::RawSql(expr) => {
                             set_clauses.push(format!("`{}` = {}", e.column.replace('`', "``"), expr));
                         }
@@ -428,6 +429,7 @@ impl AppView {
                 .collect();
             for (_, v) in insert.column_values {
                 match v {
+                    // Intentional: RawSql expressions are inlined directly — the user is operating their own DB.
                     Value::RawSql(expr) => placeholders.push(expr),
                     other => {
                         placeholders.push("?".to_string());
