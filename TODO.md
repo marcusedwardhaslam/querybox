@@ -3,9 +3,9 @@
 ## Features
 
 - [x] Format SQL button
-- [ ] Schema view / Results view
+- [x] Schema view / Results view
 - [x] Foreign key direct access orders.user_id -> users table filtered to that id
-- [ ] Make "database" field in connection configuration window connect directly to that database
+- [x] Make "database" field in connection configuration window connect directly to that database
 - [ ] Run only highlighted SQL in "New Query" view
 - [x] New row support in table view
 - [x] Mac OS bundled application
