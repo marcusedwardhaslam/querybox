@@ -537,14 +537,14 @@ impl AppView {
                     .cloned();
                 sidebar.update(cx, |s, cx| {
                     s.databases = databases;
+                    if let Some(ref db) = auto_select_match {
+                        s.selected_database = Some(db.clone());
+                        s.selected_table = None;
+                        s.tables = vec![];
+                    }
                     cx.notify();
                 });
                 if let Some(db) = auto_select_match {
-                    sidebar.update(cx, |s, cx| {
-                        s.selected_database = Some(db.clone());
-                        s.tables = vec![];
-                        cx.notify();
-                    });
                     this.update(cx, |app_view, cx| {
                         AppView::load_tables(driver2, db, app_view.sidebar.clone(), cx);
                     })
