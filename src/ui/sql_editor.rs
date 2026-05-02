@@ -70,7 +70,6 @@ impl SqlEditor {
     }
 
     // Called by the run-query handler (Task 2) to execute only the highlighted SQL.
-    #[allow(dead_code)]
     pub fn selected_sql(&self) -> Option<&str> {
         if self.selected_range.is_empty() {
             None
