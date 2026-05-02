@@ -9,6 +9,7 @@
 - [ ] Run only highlighted SQL in "New Query" view
 - [x] New row support in table view
 - [x] Mac OS bundled application
+- [ ] Show error state in schema view when schema load fails (currently shows "Loading schema..." forever on error)
 - [ ] Operating system level configuration / preference (cmd + , on Mac OS)
   - [ ] Option to not use keychain and store in encoded JSON?
 - [ ] Current running queries modal (kill long queries etc)

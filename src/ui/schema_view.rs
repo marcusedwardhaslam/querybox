@@ -1,12 +1,14 @@
-#![allow(dead_code)]
-
 use gpui::*;
 
 use crate::db::types::{Column, Index};
 
 pub struct SchemaView {
-    pub database: String,
-    pub table_name: String,
+    // Stored for future use (e.g. section title, refresh trigger).
+    #[allow(dead_code)]
+    database: String,
+    // Stored for future use (e.g. section title, refresh trigger).
+    #[allow(dead_code)]
+    table_name: String,
     pub columns: Vec<Column>,
     pub indexes: Vec<Index>,
     pub loading: bool,

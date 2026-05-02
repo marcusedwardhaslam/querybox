@@ -2,7 +2,7 @@ use gpui::*;
 use std::sync::Arc;
 
 use crate::connection::ConnectionManager;
-use crate::db::types::Value;
+use crate::db::types::{Column, Index, Value};
 use crate::db::{types::Dialect, DatabaseDriver};
 use crate::query::filter::{filters_to_sql, Filter, FilterOp};
 
@@ -255,6 +255,7 @@ impl AppView {
             view.clone(),
             cx,
         );
+        AppView::load_schema(driver.clone(), database.clone(), table.clone(), view.clone(), cx);
         AppView::load_foreign_keys(driver, database, table, view, cx);
     }
 
@@ -554,6 +555,42 @@ impl AppView {
         cx.spawn(async move |_this: WeakEntity<AppView>, cx: &mut AsyncApp| {
             if let Ok(Ok(fks)) = rx.await {
                 view.update(cx, |v, cx| v.set_foreign_keys(fks, cx));
+            }
+        })
+        .detach();
+    }
+
+    fn load_schema(
+        driver: Arc<dyn DatabaseDriver>,
+        database: String,
+        table: String,
+        view: Entity<TableView>,
+        cx: &mut Context<Self>,
+    ) {
+        let (tx, rx) =
+            tokio::sync::oneshot::channel::<Result<(Vec<Column>, Vec<Index>), String>>();
+        let db = database.clone();
+        let tbl = table.clone();
+        crate::db_runtime().spawn(async move {
+            let columns = match driver.columns(&db, &tbl).await {
+                Ok(c) => c,
+                Err(e) => {
+                    tx.send(Err(e.to_string())).ok();
+                    return;
+                }
+            };
+            let indexes = match driver.indexes(&db, &tbl).await {
+                Ok(i) => i,
+                Err(e) => {
+                    tx.send(Err(e.to_string())).ok();
+                    return;
+                }
+            };
+            tx.send(Ok((columns, indexes))).ok();
+        });
+        cx.spawn(async move |_this: WeakEntity<AppView>, cx: &mut AsyncApp| {
+            if let Ok(Ok((columns, indexes))) = rx.await {
+                view.update(cx, |v, cx| v.set_schema(columns, indexes, cx));
             }
         })
         .detach();

@@ -3,14 +3,22 @@ use std::collections::HashMap;
 use gpui::prelude::FluentBuilder;
 use gpui::*;
 
+use super::schema_view::SchemaView;
 use super::text_field::TextField;
-use crate::db::types::{text_to_value, Column, QueryResult, Row, Value};
+use crate::db::types::{text_to_value, Column, Index, QueryResult, Row, Value};
 use crate::query::filter::{Filter, FilterOp};
 
 actions!(
     table_view,
     [CommitEdit, CancelEdit, SaveEdits, GoToPage, InsertNewRow]
 );
+
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
+enum ViewMode {
+    #[default]
+    Data,
+    Schema,
+}
 
 pub fn register_table_view_actions(cx: &mut App) {
     cx.bind_keys([
@@ -98,10 +106,13 @@ pub struct TableView {
 
     scroll_handle: ScrollHandle,
     pub foreign_keys: Vec<crate::db::types::ForeignKey>,
+    view_mode: ViewMode,
+    schema_view: Entity<SchemaView>,
 }
 
 impl TableView {
     pub fn new(database: String, table_name: String, cx: &mut Context<Self>) -> Self {
+        let schema_view = cx.new(|_| SchemaView::new(database.clone(), table_name.clone()));
         Self {
             database,
             table_name,
@@ -131,6 +142,8 @@ impl TableView {
             page_jump_field: cx.new(|cx| TextField::new(cx, "#")), // page number input
             scroll_handle: ScrollHandle::new(),
             foreign_keys: vec![],
+            view_mode: ViewMode::Data,
+            schema_view,
         }
     }
 
@@ -176,6 +189,17 @@ impl TableView {
     ) {
         self.foreign_keys = fks;
         cx.notify();
+    }
+
+    // Called by AppView once schema data arrives (Task 3).
+    pub fn set_schema(
+        &mut self,
+        columns: Vec<Column>,
+        indexes: Vec<Index>,
+        cx: &mut Context<Self>,
+    ) {
+        self.schema_view
+            .update(cx, |sv, cx| sv.set_schema(columns, indexes, cx));
     }
 
     pub fn set_loading(&mut self, cx: &mut Context<Self>) {
@@ -432,10 +456,14 @@ impl Render for TableView {
             .flex_col()
             .size_full()
             .child(self.render_toolbar(cx))
-            .when(self.filter_form_visible, |d| {
-                d.child(self.render_filter_form(cx))
+            .when(
+                self.filter_form_visible && self.view_mode == ViewMode::Data,
+                |d| d.child(self.render_filter_form(cx)),
+            )
+            .child(match self.view_mode {
+                ViewMode::Data => self.render_grid(cx).into_any_element(),
+                ViewMode::Schema => self.schema_view.clone().into_any_element(),
             })
-            .child(self.render_grid(cx))
     }
 }
 
@@ -539,6 +567,73 @@ impl TableView {
             .px(px(12.))
             .py(px(8.))
             .gap_2()
+            .child(
+                div()
+                    .id("view-mode-data")
+                    .bg(if self.view_mode == ViewMode::Data {
+                        rgb(0x89b4fa)
+                    } else {
+                        rgb(0x313244)
+                    })
+                    .text_color(if self.view_mode == ViewMode::Data {
+                        rgb(0x1e1e2e)
+                    } else {
+                        rgb(0x6c7086)
+                    })
+                    .font_weight(if self.view_mode == ViewMode::Data {
+                        FontWeight::SEMIBOLD
+                    } else {
+                        FontWeight::NORMAL
+                    })
+                    .rounded(px(4.))
+                    .px(px(10.))
+                    .py(px(4.))
+                    .text_size(px(11.))
+                    .cursor_pointer()
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.view_mode = ViewMode::Data;
+                        cx.notify();
+                    }))
+                    .child("Data"),
+            )
+            .child(
+                div()
+                    .id("view-mode-schema")
+                    .bg(if self.view_mode == ViewMode::Schema {
+                        rgb(0x89b4fa)
+                    } else {
+                        rgb(0x313244)
+                    })
+                    .text_color(if self.view_mode == ViewMode::Schema {
+                        rgb(0x1e1e2e)
+                    } else {
+                        rgb(0x6c7086)
+                    })
+                    .font_weight(if self.view_mode == ViewMode::Schema {
+                        FontWeight::SEMIBOLD
+                    } else {
+                        FontWeight::NORMAL
+                    })
+                    .rounded(px(4.))
+                    .px(px(10.))
+                    .py(px(4.))
+                    .text_size(px(11.))
+                    .cursor_pointer()
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.view_mode = ViewMode::Schema;
+                        this.filter_form_visible = false;
+                        this.new_row_active = false;
+                        cx.notify();
+                    }))
+                    .child("Schema"),
+            )
+            .child(
+                div()
+                    .w(px(1.))
+                    .h(px(16.))
+                    .bg(rgb(0x45475a))
+                    .flex_shrink_0(),
+            )
             .child(
                 div()
                     .id("filter-btn")
