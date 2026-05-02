@@ -6,7 +6,7 @@
 - [x] Schema view / Results view
 - [x] Foreign key direct access orders.user_id -> users table filtered to that id
 - [x] Make "database" field in connection configuration window connect directly to that database
-- [ ] Run only highlighted SQL in "New Query" view
+- [x] Run only highlighted SQL in "New Query" view
 - [x] New row support in table view
 - [x] Mac OS bundled application
 - [ ] Show error state in schema view when schema load fails (currently shows "Loading schema..." forever on error)
