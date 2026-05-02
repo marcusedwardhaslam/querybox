@@ -69,13 +69,8 @@ impl SqlEditor {
         cx.notify();
     }
 
-    #[allow(dead_code)]
     pub fn selected_sql(&self) -> Option<&str> {
-        if self.selected_range.is_empty() {
-            None
-        } else {
-            Some(&self.content[self.selected_range.clone()])
-        }
+        selected_sql_impl(&self.content, &self.selected_range)
     }
 
     // ── content helpers ──────────────────────────────────────────────────────
@@ -814,9 +809,18 @@ pub(crate) fn build_text_runs(
     runs
 }
 
+// Keep this private helper for testing — the public method delegates to it
+fn selected_sql_impl<'a>(content: &'a str, range: &std::ops::Range<usize>) -> Option<&'a str> {
+    if range.is_empty() {
+        None
+    } else {
+        Some(&content[range.clone()])
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::build_text_runs;
+    use super::{build_text_runs, selected_sql_impl};
     use gpui::{black, rgba, Font, Hsla, Rgba};
 
     fn default_font() -> Font {
@@ -901,21 +905,13 @@ mod tests {
         assert_eq!(runs.iter().map(|r| r.len).sum::<usize>(), 9);
     }
 
-    fn selected_sql_from(content: &str, range: std::ops::Range<usize>) -> Option<&str> {
-        if range.is_empty() {
-            None
-        } else {
-            Some(&content[range])
-        }
-    }
-
     #[test]
     fn test_selected_sql_no_selection() {
-        assert_eq!(selected_sql_from("SELECT 1", 0..0), None);
+        assert_eq!(selected_sql_impl("SELECT 1", &(0..0)), None);
     }
 
     #[test]
     fn test_selected_sql_with_selection() {
-        assert_eq!(selected_sql_from("SELECT 1", 0..6), Some("SELECT"));
+        assert_eq!(selected_sql_impl("SELECT 1", &(0..6)), Some("SELECT"));
     }
 }
