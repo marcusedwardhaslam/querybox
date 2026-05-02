@@ -5,7 +5,7 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-gpui = { git = "https://github.com/zed-industries/zed", branch = "main", features = ["test-support"] }
+gpui = { git = "https://github.com/zed-industries/zed", branch = "main" }
 gpui_platform = { git = "https://github.com/zed-industries/zed", branch = "main", features = ["font-kit"] }
 mysql_async = "0.34"
 tokio-postgres = "0.7"
@@ -24,6 +24,9 @@ chrono = { version = "0.4", features = ["serde"] }
 hex = "0.4"
 env_logger = "0.11.10"
 unicode-segmentation = "1.13.2"
+
+[dev-dependencies]
+gpui = { git = "https://github.com/zed-industries/zed", branch = "main", features = ["test-support"] }
 
 [package.metadata.bundle]
 name = "QueryBox"
