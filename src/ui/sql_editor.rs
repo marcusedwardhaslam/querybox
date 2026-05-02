@@ -69,8 +69,14 @@ impl SqlEditor {
         cx.notify();
     }
 
+    // Called by the run-query handler (Task 2) to execute only the highlighted SQL.
+    #[allow(dead_code)]
     pub fn selected_sql(&self) -> Option<&str> {
-        selected_sql_impl(&self.content, &self.selected_range)
+        if self.selected_range.is_empty() {
+            None
+        } else {
+            Some(&self.content[self.selected_range.clone()])
+        }
     }
 
     // ── content helpers ──────────────────────────────────────────────────────
@@ -809,19 +815,10 @@ pub(crate) fn build_text_runs(
     runs
 }
 
-// Keep this private helper for testing — the public method delegates to it
-fn selected_sql_impl<'a>(content: &'a str, range: &std::ops::Range<usize>) -> Option<&'a str> {
-    if range.is_empty() {
-        None
-    } else {
-        Some(&content[range.clone()])
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{build_text_runs, selected_sql_impl};
-    use gpui::{black, rgba, Font, Hsla, Rgba};
+    use super::{SqlEditor, build_text_runs};
+    use gpui::{AppContext as _, TestAppContext, black, rgba, Font, Hsla, Rgba};
 
     fn default_font() -> Font {
         Font::default()
@@ -905,13 +902,26 @@ mod tests {
         assert_eq!(runs.iter().map(|r| r.len).sum::<usize>(), 9);
     }
 
-    #[test]
-    fn test_selected_sql_no_selection() {
-        assert_eq!(selected_sql_impl("SELECT 1", &(0..0)), None);
+    #[gpui::test]
+    fn test_selected_sql_no_selection(cx: &mut TestAppContext) {
+        let editor = cx.update(|cx| cx.new(SqlEditor::new));
+        editor.update(cx, |editor, cx| {
+            editor.set_content("SELECT 1", cx);
+        });
+        editor.read_with(cx, |editor, _| {
+            assert_eq!(editor.selected_sql(), None);
+        });
     }
 
-    #[test]
-    fn test_selected_sql_with_selection() {
-        assert_eq!(selected_sql_impl("SELECT 1", &(0..6)), Some("SELECT"));
+    #[gpui::test]
+    fn test_selected_sql_with_selection(cx: &mut TestAppContext) {
+        let editor = cx.update(|cx| cx.new(SqlEditor::new));
+        editor.update(cx, |editor, cx| {
+            editor.set_content("SELECT 1", cx);
+            editor.selected_range = 0..6;
+        });
+        editor.read_with(cx, |editor, _| {
+            assert_eq!(editor.selected_sql(), Some("SELECT"));
+        });
     }
 }
