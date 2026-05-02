@@ -73,7 +73,13 @@ impl EditorView {
     }
 
     fn run_query(&mut self, cx: &mut Context<Self>) {
-        let sql = self.editor.read(cx).content.to_string();
+        let sql = {
+            let editor = self.editor.read(cx);
+            editor
+                .selected_sql()
+                .unwrap_or(editor.content.as_ref())
+                .to_string()
+        };
         if sql.trim().is_empty() {
             return;
         }
@@ -85,6 +91,7 @@ impl EditorView {
         self.result = None;
         cx.notify();
 
+        let sql_clone = sql.clone();
         let database = self.database.clone();
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<QueryResult, String>>();
         crate::db_runtime().spawn(async move {
@@ -98,7 +105,6 @@ impl EditorView {
             }
         });
 
-        let sql_clone = self.editor.read(cx).content.to_string();
         cx.spawn(
             async move |this: WeakEntity<EditorView>, cx: &mut AsyncApp| match rx.await {
                 Ok(Ok(result)) => {
