@@ -103,9 +103,14 @@ impl AppView {
                                     app_view.connection_manager = manager;
                                     app_view.status_message = "Connected".to_string();
                                     app_view.connection_dialog.update(cx, |d, cx| d.hide(cx));
-                                    // Load databases immediately after connect
+                                    // Load databases immediately after connect; auto-select default_database if set
+                                    let auto_select = app_view
+                                        .connection_manager
+                                        .active_profile
+                                        .as_ref()
+                                        .and_then(|p| p.default_database.clone());
                                     if let Some(driver) = app_view.connection_manager.driver_arc() {
-                                        AppView::load_databases(driver, sidebar, cx);
+                                        AppView::load_databases(driver, sidebar, auto_select, cx);
                                     }
                                 }
                             }
@@ -509,9 +514,11 @@ impl AppView {
     fn load_databases(
         driver: Arc<dyn DatabaseDriver>,
         sidebar: Entity<Sidebar>,
+        auto_select: Option<String>,
         cx: &mut Context<Self>,
     ) {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<String>, String>>();
+        let driver2 = driver.clone();
         crate::db_runtime().spawn(async move {
             match driver.databases().await {
                 Ok(dbs) => {
@@ -522,12 +529,27 @@ impl AppView {
                 }
             }
         });
-        cx.spawn(async move |_this: WeakEntity<AppView>, cx: &mut AsyncApp| {
+        cx.spawn(async move |this: WeakEntity<AppView>, cx: &mut AsyncApp| {
             if let Ok(Ok(databases)) = rx.await {
+                let auto_select_match = auto_select
+                    .as_ref()
+                    .filter(|db| databases.contains(db))
+                    .cloned();
                 sidebar.update(cx, |s, cx| {
                     s.databases = databases;
                     cx.notify();
                 });
+                if let Some(db) = auto_select_match {
+                    sidebar.update(cx, |s, cx| {
+                        s.selected_database = Some(db.clone());
+                        s.tables = vec![];
+                        cx.notify();
+                    });
+                    this.update(cx, |app_view, cx| {
+                        AppView::load_tables(driver2, db, app_view.sidebar.clone(), cx);
+                    })
+                    .ok();
+                }
             }
         })
         .detach();
