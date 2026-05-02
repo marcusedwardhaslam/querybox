@@ -69,6 +69,15 @@ impl SqlEditor {
         cx.notify();
     }
 
+    #[allow(dead_code)]
+    pub fn selected_sql(&self) -> Option<&str> {
+        if self.selected_range.is_empty() {
+            None
+        } else {
+            Some(&self.content[self.selected_range.clone()])
+        }
+    }
+
     // ── content helpers ──────────────────────────────────────────────────────
 
     fn cursor_offset(&self) -> usize {
@@ -890,5 +899,23 @@ mod tests {
         let spans = vec![(0..6, blue), (7..9, green)];
         let runs = build_text_runs("SELECT 42", 0, &spans, default_font(), default_color());
         assert_eq!(runs.iter().map(|r| r.len).sum::<usize>(), 9);
+    }
+
+    fn selected_sql_from(content: &str, range: std::ops::Range<usize>) -> Option<&str> {
+        if range.is_empty() {
+            None
+        } else {
+            Some(&content[range])
+        }
+    }
+
+    #[test]
+    fn test_selected_sql_no_selection() {
+        assert_eq!(selected_sql_from("SELECT 1", 0..0), None);
+    }
+
+    #[test]
+    fn test_selected_sql_with_selection() {
+        assert_eq!(selected_sql_from("SELECT 1", 0..6), Some("SELECT"));
     }
 }
