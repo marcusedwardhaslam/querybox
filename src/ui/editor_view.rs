@@ -7,6 +7,12 @@ use crate::db::{types::QueryResult, types::Value, DatabaseDriver};
 use crate::query::format::format_sql;
 use crate::query::history::QueryHistory;
 
+actions!(editor_view, [RunQuery]);
+
+pub fn register_editor_view_actions(cx: &mut App) {
+    cx.bind_keys([KeyBinding::new("cmd-enter", RunQuery, Some("EditorView"))]);
+}
+
 pub struct EditorView {
     pub result: Option<QueryResult>,
     pub error: Option<String>,
@@ -125,6 +131,10 @@ impl EditorView {
 impl Render for EditorView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
+            .key_context("EditorView")
+            .on_action(cx.listener(|this, _: &RunQuery, _, cx| {
+                this.run_query(cx);
+            }))
             .flex()
             .flex_col()
             .size_full()

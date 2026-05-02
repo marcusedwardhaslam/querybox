@@ -36,6 +36,7 @@ fn main() {
         ui::text_field::register_text_field_actions(cx);
         ui::sql_editor::register_sql_editor_actions(cx);
         ui::table_view::register_table_view_actions(cx);
+        ui::editor_view::register_editor_view_actions(cx);
         let bounds = Bounds::centered(None, size(px(1200.), px(800.)), cx);
         cx.open_window(
             WindowOptions {
