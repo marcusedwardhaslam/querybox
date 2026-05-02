@@ -3,8 +3,10 @@ use gpui::*;
 use crate::db::types::{Column, Index};
 
 pub struct SchemaView {
+    // Stored for future use (e.g. section title, refresh trigger).
     #[allow(dead_code)]
     database: String,
+    // Stored for future use (e.g. section title, refresh trigger).
     #[allow(dead_code)]
     table_name: String,
     pub columns: Vec<Column>,

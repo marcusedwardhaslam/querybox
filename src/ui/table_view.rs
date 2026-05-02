@@ -621,6 +621,8 @@ impl TableView {
                     .cursor_pointer()
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.view_mode = ViewMode::Schema;
+                        this.filter_form_visible = false;
+                        this.new_row_active = false;
                         cx.notify();
                     }))
                     .child("Schema"),
