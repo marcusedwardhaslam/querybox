@@ -5,12 +5,19 @@ use gpui::*;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::query::highlight;
+use crate::ui::text_motion;
 
 actions!(
     sql_editor,
     [
         Backspace, Delete, Left, Right, Up, Down, SelectAll, Home, End, Paste, Cut, Copy, Enter,
-        Tab
+        Tab,
+        MovePrevWord, MoveNextWord, MoveDocStart, MoveDocEnd,
+        SelectLeft, SelectRight, SelectUp, SelectDown,
+        SelectLineStart, SelectLineEnd, SelectDocStart, SelectDocEnd,
+        SelectPrevWord, SelectNextWord,
+        DeleteWordBack, DeleteWordForward, DeleteToLineStart,
+        Undo, Redo,
     ]
 );
 
@@ -25,11 +32,34 @@ pub fn register_sql_editor_actions(cx: &mut App) {
         KeyBinding::new("cmd-a", SelectAll, Some("SqlEditor")),
         KeyBinding::new("home", Home, Some("SqlEditor")),
         KeyBinding::new("end", End, Some("SqlEditor")),
+        KeyBinding::new("cmd-left", Home, Some("SqlEditor")),
+        KeyBinding::new("cmd-right", End, Some("SqlEditor")),
         KeyBinding::new("cmd-v", Paste, Some("SqlEditor")),
         KeyBinding::new("cmd-c", Copy, Some("SqlEditor")),
         KeyBinding::new("cmd-x", Cut, Some("SqlEditor")),
         KeyBinding::new("enter", Enter, Some("SqlEditor")),
         KeyBinding::new("tab", Tab, Some("SqlEditor")),
+        KeyBinding::new("alt-left", MovePrevWord, Some("SqlEditor")),
+        KeyBinding::new("alt-right", MoveNextWord, Some("SqlEditor")),
+        KeyBinding::new("cmd-up", MoveDocStart, Some("SqlEditor")),
+        KeyBinding::new("cmd-down", MoveDocEnd, Some("SqlEditor")),
+        KeyBinding::new("shift-left", SelectLeft, Some("SqlEditor")),
+        KeyBinding::new("shift-right", SelectRight, Some("SqlEditor")),
+        KeyBinding::new("shift-up", SelectUp, Some("SqlEditor")),
+        KeyBinding::new("shift-down", SelectDown, Some("SqlEditor")),
+        KeyBinding::new("shift-home", SelectLineStart, Some("SqlEditor")),
+        KeyBinding::new("shift-cmd-left", SelectLineStart, Some("SqlEditor")),
+        KeyBinding::new("shift-end", SelectLineEnd, Some("SqlEditor")),
+        KeyBinding::new("shift-cmd-right", SelectLineEnd, Some("SqlEditor")),
+        KeyBinding::new("shift-cmd-up", SelectDocStart, Some("SqlEditor")),
+        KeyBinding::new("shift-cmd-down", SelectDocEnd, Some("SqlEditor")),
+        KeyBinding::new("shift-alt-left", SelectPrevWord, Some("SqlEditor")),
+        KeyBinding::new("shift-alt-right", SelectNextWord, Some("SqlEditor")),
+        KeyBinding::new("alt-backspace", DeleteWordBack, Some("SqlEditor")),
+        KeyBinding::new("alt-delete", DeleteWordForward, Some("SqlEditor")),
+        KeyBinding::new("cmd-backspace", DeleteToLineStart, Some("SqlEditor")),
+        KeyBinding::new("cmd-z", Undo, Some("SqlEditor")),
+        KeyBinding::new("cmd-shift-z", Redo, Some("SqlEditor")),
     ]);
 }
 
@@ -44,6 +74,8 @@ pub struct SqlEditor {
     last_bounds: Option<Bounds<Pixels>>,
     last_line_height: Pixels,
     is_selecting: bool,
+    undo_stack: Vec<(SharedString, Range<usize>)>,
+    redo_stack: Vec<(SharedString, Range<usize>)>,
 }
 
 impl SqlEditor {
@@ -58,6 +90,8 @@ impl SqlEditor {
             last_bounds: None,
             last_line_height: px(20.),
             is_selecting: false,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
     }
 
@@ -66,6 +100,8 @@ impl SqlEditor {
         self.selected_range = 0..0;
         self.selection_reversed = false;
         self.marked_range = None;
+        self.undo_stack.clear();
+        self.redo_stack.clear();
         cx.notify();
     }
 
@@ -328,6 +364,127 @@ impl SqlEditor {
         }
     }
 
+    fn on_undo(&mut self, _: &Undo, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some((content, selection)) = self.undo_stack.pop() {
+            self.redo_stack.push((self.content.clone(), self.selected_range.clone()));
+            self.content = content;
+            self.selected_range = selection;
+            self.marked_range = None;
+            cx.notify();
+        }
+    }
+
+    fn on_redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some((content, selection)) = self.redo_stack.pop() {
+            self.undo_stack.push((self.content.clone(), self.selected_range.clone()));
+            self.content = content;
+            self.selected_range = selection;
+            self.marked_range = None;
+            cx.notify();
+        }
+    }
+
+    fn on_move_prev_word(&mut self, _: &MovePrevWord, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = text_motion::prev_word_start(&self.content, self.cursor_offset());
+        self.move_to(offset, cx);
+    }
+
+    fn on_move_next_word(&mut self, _: &MoveNextWord, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = text_motion::next_word_end(&self.content, self.cursor_offset());
+        self.move_to(offset, cx);
+    }
+
+    fn on_move_doc_start(&mut self, _: &MoveDocStart, _: &mut Window, cx: &mut Context<Self>) {
+        self.move_to(0, cx);
+    }
+
+    fn on_move_doc_end(&mut self, _: &MoveDocEnd, _: &mut Window, cx: &mut Context<Self>) {
+        self.move_to(self.content.len(), cx);
+    }
+
+    fn on_select_left(&mut self, _: &SelectLeft, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = self.previous_boundary(self.cursor_offset());
+        self.select_to(offset, cx);
+    }
+
+    fn on_select_right(&mut self, _: &SelectRight, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = self.next_boundary(self.cursor_offset());
+        self.select_to(offset, cx);
+    }
+
+    fn on_select_up(&mut self, _: &SelectUp, _: &mut Window, cx: &mut Context<Self>) {
+        let (line_idx, col, _) = self.cursor_line_col();
+        if line_idx == 0 {
+            self.select_to(0, cx);
+            return;
+        }
+        let offset = self.offset_at_line_col(line_idx - 1, col);
+        self.select_to(offset, cx);
+    }
+
+    fn on_select_down(&mut self, _: &SelectDown, _: &mut Window, cx: &mut Context<Self>) {
+        let count = self.content.split('\n').count();
+        let (line_idx, col, _) = self.cursor_line_col();
+        if line_idx >= count - 1 {
+            self.select_to(self.content.len(), cx);
+            return;
+        }
+        let offset = self.offset_at_line_col(line_idx + 1, col);
+        self.select_to(offset, cx);
+    }
+
+    fn on_select_line_start(&mut self, _: &SelectLineStart, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = text_motion::line_start(&self.content, self.cursor_offset());
+        self.select_to(offset, cx);
+    }
+
+    fn on_select_line_end(&mut self, _: &SelectLineEnd, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = text_motion::line_end(&self.content, self.cursor_offset());
+        self.select_to(offset, cx);
+    }
+
+    fn on_select_doc_start(&mut self, _: &SelectDocStart, _: &mut Window, cx: &mut Context<Self>) {
+        self.select_to(0, cx);
+    }
+
+    fn on_select_doc_end(&mut self, _: &SelectDocEnd, _: &mut Window, cx: &mut Context<Self>) {
+        self.select_to(self.content.len(), cx);
+    }
+
+    fn on_select_prev_word(&mut self, _: &SelectPrevWord, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = text_motion::prev_word_start(&self.content, self.cursor_offset());
+        self.select_to(offset, cx);
+    }
+
+    fn on_select_next_word(&mut self, _: &SelectNextWord, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = text_motion::next_word_end(&self.content, self.cursor_offset());
+        self.select_to(offset, cx);
+    }
+
+    fn on_delete_word_back(&mut self, _: &DeleteWordBack, window: &mut Window, cx: &mut Context<Self>) {
+        if self.selected_range.is_empty() {
+            let offset = text_motion::prev_word_start(&self.content, self.cursor_offset());
+            self.select_to(offset, cx);
+        }
+        self.replace_text_in_range(None, "", window, cx);
+    }
+
+    fn on_delete_word_forward(&mut self, _: &DeleteWordForward, window: &mut Window, cx: &mut Context<Self>) {
+        if self.selected_range.is_empty() {
+            let offset = text_motion::next_word_end(&self.content, self.cursor_offset());
+            self.select_to(offset, cx);
+        }
+        self.replace_text_in_range(None, "", window, cx);
+    }
+
+    fn on_delete_to_line_start(&mut self, _: &DeleteToLineStart, window: &mut Window, cx: &mut Context<Self>) {
+        if self.selected_range.is_empty() {
+            let offset = text_motion::line_start(&self.content, self.cursor_offset());
+            self.select_to(offset, cx);
+        }
+        self.replace_text_in_range(None, "", window, cx);
+    }
+
     fn on_mouse_down(&mut self, event: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         self.is_selecting = true;
         if event.modifiers.shift {
@@ -390,6 +547,8 @@ impl EntityInputHandler for SqlEditor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.undo_stack.push((self.content.clone(), self.selected_range.clone()));
+        self.redo_stack.clear();
         let range = range_utf16
             .as_ref()
             .map(|r| self.range_from_utf16(r))
@@ -508,6 +667,25 @@ impl Render for SqlEditor {
             .on_action(cx.listener(Self::on_cut))
             .on_action(cx.listener(Self::on_enter))
             .on_action(cx.listener(Self::on_tab))
+            .on_action(cx.listener(Self::on_undo))
+            .on_action(cx.listener(Self::on_redo))
+            .on_action(cx.listener(Self::on_move_prev_word))
+            .on_action(cx.listener(Self::on_move_next_word))
+            .on_action(cx.listener(Self::on_move_doc_start))
+            .on_action(cx.listener(Self::on_move_doc_end))
+            .on_action(cx.listener(Self::on_select_left))
+            .on_action(cx.listener(Self::on_select_right))
+            .on_action(cx.listener(Self::on_select_up))
+            .on_action(cx.listener(Self::on_select_down))
+            .on_action(cx.listener(Self::on_select_line_start))
+            .on_action(cx.listener(Self::on_select_line_end))
+            .on_action(cx.listener(Self::on_select_doc_start))
+            .on_action(cx.listener(Self::on_select_doc_end))
+            .on_action(cx.listener(Self::on_select_prev_word))
+            .on_action(cx.listener(Self::on_select_next_word))
+            .on_action(cx.listener(Self::on_delete_word_back))
+            .on_action(cx.listener(Self::on_delete_word_forward))
+            .on_action(cx.listener(Self::on_delete_to_line_start))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
