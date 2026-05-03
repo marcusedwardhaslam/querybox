@@ -684,6 +684,15 @@ impl Render for AppView {
             .size_full()
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::close_active_tab))
+            .on_action(cx.listener(Self::on_switch_to_tab_1))
+            .on_action(cx.listener(Self::on_switch_to_tab_2))
+            .on_action(cx.listener(Self::on_switch_to_tab_3))
+            .on_action(cx.listener(Self::on_switch_to_tab_4))
+            .on_action(cx.listener(Self::on_switch_to_tab_5))
+            .on_action(cx.listener(Self::on_switch_to_tab_6))
+            .on_action(cx.listener(Self::on_switch_to_tab_7))
+            .on_action(cx.listener(Self::on_switch_to_tab_8))
+            .on_action(cx.listener(Self::on_switch_to_tab_9))
             .bg(rgb(0x181825))
             .text_color(rgb(0xcdd6f4))
             .text_size(px(13.))
@@ -723,6 +732,53 @@ impl AppView {
             self.editor_views.retain(|(id, _)| *id != tab_id);
             cx.notify();
         }
+    }
+
+    fn switch_to_tab_by_position(&mut self, position: usize, cx: &mut Context<Self>) {
+        let tabs = self.tab_bar.read(cx).tabs.clone();
+        if tabs.is_empty() {
+            return;
+        }
+        let idx = position.min(tabs.len() - 1);
+        let tab_id = tabs[idx].id;
+        self.tab_bar.update(cx, |bar, cx| bar.set_active(tab_id, cx));
+        cx.notify();
+    }
+
+    fn on_switch_to_tab_1(&mut self, _: &crate::SwitchToTab1, _: &mut Window, cx: &mut Context<Self>) {
+        self.switch_to_tab_by_position(0, cx);
+    }
+
+    fn on_switch_to_tab_2(&mut self, _: &crate::SwitchToTab2, _: &mut Window, cx: &mut Context<Self>) {
+        self.switch_to_tab_by_position(1, cx);
+    }
+
+    fn on_switch_to_tab_3(&mut self, _: &crate::SwitchToTab3, _: &mut Window, cx: &mut Context<Self>) {
+        self.switch_to_tab_by_position(2, cx);
+    }
+
+    fn on_switch_to_tab_4(&mut self, _: &crate::SwitchToTab4, _: &mut Window, cx: &mut Context<Self>) {
+        self.switch_to_tab_by_position(3, cx);
+    }
+
+    fn on_switch_to_tab_5(&mut self, _: &crate::SwitchToTab5, _: &mut Window, cx: &mut Context<Self>) {
+        self.switch_to_tab_by_position(4, cx);
+    }
+
+    fn on_switch_to_tab_6(&mut self, _: &crate::SwitchToTab6, _: &mut Window, cx: &mut Context<Self>) {
+        self.switch_to_tab_by_position(5, cx);
+    }
+
+    fn on_switch_to_tab_7(&mut self, _: &crate::SwitchToTab7, _: &mut Window, cx: &mut Context<Self>) {
+        self.switch_to_tab_by_position(6, cx);
+    }
+
+    fn on_switch_to_tab_8(&mut self, _: &crate::SwitchToTab8, _: &mut Window, cx: &mut Context<Self>) {
+        self.switch_to_tab_by_position(7, cx);
+    }
+
+    fn on_switch_to_tab_9(&mut self, _: &crate::SwitchToTab9, _: &mut Window, cx: &mut Context<Self>) {
+        self.switch_to_tab_by_position(8, cx);
     }
 
     fn render_active_content(&self, active_tab: Option<usize>) -> impl IntoElement {
