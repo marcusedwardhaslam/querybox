@@ -4,9 +4,19 @@ use gpui::prelude::FluentBuilder;
 use gpui::*;
 use unicode_segmentation::UnicodeSegmentation;
 
+use crate::ui::text_motion;
+
 actions!(
     text_field,
-    [Backspace, Delete, Left, Right, SelectAll, Home, End, Paste, Cut, Copy]
+    [
+        Backspace, Delete, Left, Right, SelectAll, Home, End, Paste, Cut, Copy,
+        MovePrevWord, MoveNextWord,
+        SelectLeft, SelectRight,
+        SelectLineStart, SelectLineEnd,
+        SelectPrevWord, SelectNextWord,
+        DeleteWordBack, DeleteWordForward, DeleteToLineStart,
+        Undo, Redo,
+    ]
 );
 
 pub fn register_text_field_actions(cx: &mut App) {
@@ -18,9 +28,26 @@ pub fn register_text_field_actions(cx: &mut App) {
         KeyBinding::new("cmd-a", SelectAll, Some("TextField")),
         KeyBinding::new("home", Home, Some("TextField")),
         KeyBinding::new("end", End, Some("TextField")),
+        KeyBinding::new("cmd-left", Home, Some("TextField")),
+        KeyBinding::new("cmd-right", End, Some("TextField")),
         KeyBinding::new("cmd-v", Paste, Some("TextField")),
         KeyBinding::new("cmd-c", Copy, Some("TextField")),
         KeyBinding::new("cmd-x", Cut, Some("TextField")),
+        KeyBinding::new("alt-left", MovePrevWord, Some("TextField")),
+        KeyBinding::new("alt-right", MoveNextWord, Some("TextField")),
+        KeyBinding::new("shift-left", SelectLeft, Some("TextField")),
+        KeyBinding::new("shift-right", SelectRight, Some("TextField")),
+        KeyBinding::new("shift-home", SelectLineStart, Some("TextField")),
+        KeyBinding::new("shift-cmd-left", SelectLineStart, Some("TextField")),
+        KeyBinding::new("shift-end", SelectLineEnd, Some("TextField")),
+        KeyBinding::new("shift-cmd-right", SelectLineEnd, Some("TextField")),
+        KeyBinding::new("shift-alt-left", SelectPrevWord, Some("TextField")),
+        KeyBinding::new("shift-alt-right", SelectNextWord, Some("TextField")),
+        KeyBinding::new("alt-backspace", DeleteWordBack, Some("TextField")),
+        KeyBinding::new("alt-delete", DeleteWordForward, Some("TextField")),
+        KeyBinding::new("cmd-backspace", DeleteToLineStart, Some("TextField")),
+        KeyBinding::new("cmd-z", Undo, Some("TextField")),
+        KeyBinding::new("cmd-shift-z", Redo, Some("TextField")),
     ]);
 }
 
@@ -35,6 +62,8 @@ pub struct TextField {
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
     is_selecting: bool,
+    undo_stack: Vec<(SharedString, Range<usize>)>,
+    redo_stack: Vec<(SharedString, Range<usize>)>,
 }
 
 impl TextField {
@@ -50,6 +79,8 @@ impl TextField {
             last_layout: None,
             last_bounds: None,
             is_selecting: false,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
     }
 
@@ -57,6 +88,8 @@ impl TextField {
         self.content = content.into();
         let len = self.content.len();
         self.selected_range = len..len;
+        self.undo_stack.clear();
+        self.redo_stack.clear();
         cx.notify();
     }
 
@@ -226,6 +259,87 @@ impl TextField {
         }
     }
 
+    fn on_undo(&mut self, _: &Undo, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some((content, selection)) = self.undo_stack.pop() {
+            self.redo_stack.push((self.content.clone(), self.selected_range.clone()));
+            self.content = content;
+            self.selected_range = selection;
+            self.marked_range = None;
+            cx.notify();
+        }
+    }
+
+    fn on_redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some((content, selection)) = self.redo_stack.pop() {
+            self.undo_stack.push((self.content.clone(), self.selected_range.clone()));
+            self.content = content;
+            self.selected_range = selection;
+            self.marked_range = None;
+            cx.notify();
+        }
+    }
+
+    fn on_move_prev_word(&mut self, _: &MovePrevWord, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = text_motion::prev_word_start(&self.content, self.cursor_offset());
+        self.move_to(offset, cx);
+    }
+
+    fn on_move_next_word(&mut self, _: &MoveNextWord, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = text_motion::next_word_end(&self.content, self.cursor_offset());
+        self.move_to(offset, cx);
+    }
+
+    fn on_select_left(&mut self, _: &SelectLeft, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = self.previous_boundary(self.cursor_offset());
+        self.select_to(offset, cx);
+    }
+
+    fn on_select_right(&mut self, _: &SelectRight, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = self.next_boundary(self.cursor_offset());
+        self.select_to(offset, cx);
+    }
+
+    fn on_select_line_start(&mut self, _: &SelectLineStart, _: &mut Window, cx: &mut Context<Self>) {
+        self.select_to(0, cx);
+    }
+
+    fn on_select_line_end(&mut self, _: &SelectLineEnd, _: &mut Window, cx: &mut Context<Self>) {
+        self.select_to(self.content.len(), cx);
+    }
+
+    fn on_select_prev_word(&mut self, _: &SelectPrevWord, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = text_motion::prev_word_start(&self.content, self.cursor_offset());
+        self.select_to(offset, cx);
+    }
+
+    fn on_select_next_word(&mut self, _: &SelectNextWord, _: &mut Window, cx: &mut Context<Self>) {
+        let offset = text_motion::next_word_end(&self.content, self.cursor_offset());
+        self.select_to(offset, cx);
+    }
+
+    fn on_delete_word_back(&mut self, _: &DeleteWordBack, window: &mut Window, cx: &mut Context<Self>) {
+        if self.selected_range.is_empty() {
+            let offset = text_motion::prev_word_start(&self.content, self.cursor_offset());
+            self.select_to(offset, cx);
+        }
+        self.replace_text_in_range(None, "", window, cx);
+    }
+
+    fn on_delete_word_forward(&mut self, _: &DeleteWordForward, window: &mut Window, cx: &mut Context<Self>) {
+        if self.selected_range.is_empty() {
+            let offset = text_motion::next_word_end(&self.content, self.cursor_offset());
+            self.select_to(offset, cx);
+        }
+        self.replace_text_in_range(None, "", window, cx);
+    }
+
+    fn on_delete_to_line_start(&mut self, _: &DeleteToLineStart, window: &mut Window, cx: &mut Context<Self>) {
+        if self.selected_range.is_empty() {
+            self.select_to(0, cx);
+        }
+        self.replace_text_in_range(None, "", window, cx);
+    }
+
     fn on_mouse_down(&mut self, event: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         self.is_selecting = true;
         if event.modifiers.shift {
@@ -286,6 +400,8 @@ impl EntityInputHandler for TextField {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.undo_stack.push((self.content.clone(), self.selected_range.clone()));
+        self.redo_stack.clear();
         let range = range_utf16
             .as_ref()
             .map(|r| self.range_from_utf16(r))
@@ -381,6 +497,19 @@ impl Render for TextField {
             .on_action(cx.listener(Self::on_paste))
             .on_action(cx.listener(Self::on_copy))
             .on_action(cx.listener(Self::on_cut))
+            .on_action(cx.listener(Self::on_undo))
+            .on_action(cx.listener(Self::on_redo))
+            .on_action(cx.listener(Self::on_move_prev_word))
+            .on_action(cx.listener(Self::on_move_next_word))
+            .on_action(cx.listener(Self::on_select_left))
+            .on_action(cx.listener(Self::on_select_right))
+            .on_action(cx.listener(Self::on_select_line_start))
+            .on_action(cx.listener(Self::on_select_line_end))
+            .on_action(cx.listener(Self::on_select_prev_word))
+            .on_action(cx.listener(Self::on_select_next_word))
+            .on_action(cx.listener(Self::on_delete_word_back))
+            .on_action(cx.listener(Self::on_delete_word_forward))
+            .on_action(cx.listener(Self::on_delete_to_line_start))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
