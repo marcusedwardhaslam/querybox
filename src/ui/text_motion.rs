@@ -8,64 +8,68 @@ pub fn line_end(text: &str, offset: usize) -> usize {
     text[offset..].find('\n').map(|i| offset + i).unwrap_or(text.len())
 }
 
+#[inline]
+fn is_word_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
 #[allow(dead_code)]
 pub fn prev_word_start(text: &str, offset: usize) -> usize {
     let s = &text[..offset];
-    let chars: Vec<(usize, char)> = s.char_indices().collect();
-    let n = chars.len();
-    if n == 0 {
+    let mut chars = s.char_indices().rev().peekable();
+
+    // skip trailing whitespace
+    while matches!(chars.peek(), Some((_, c)) if c.is_whitespace()) {
+        chars.next();
+    }
+
+    let Some(&(_, first)) = chars.peek() else {
         return 0;
-    }
-    let mut i = n;
+    };
+    let class = is_word_char(first);
 
-    // skip trailing whitespace (moving backwards)
-    while i > 0 && chars[i - 1].1.is_whitespace() {
-        i -= 1;
-    }
-    if i == 0 {
-        return 0;
-    }
-
-    let is_word = |c: char| c.is_alphanumeric() || c == '_';
-    let class = is_word(chars[i - 1].1);
-
-    while i > 0 && is_word(chars[i - 1].1) == class {
-        i -= 1;
+    // remember the byte offset of the last consumed char
+    let mut last_idx = 0;
+    while let Some(&(idx, c)) = chars.peek() {
+        if is_word_char(c) != class {
+            break;
+        }
+        last_idx = idx;
+        chars.next();
     }
 
-    chars.get(i).map(|(idx, _)| *idx).unwrap_or(0)
+    if chars.peek().is_none() {
+        0
+    } else {
+        last_idx
+    }
 }
 
 #[allow(dead_code)]
 pub fn next_word_end(text: &str, offset: usize) -> usize {
     let s = &text[offset..];
-    let chars: Vec<(usize, char)> = s.char_indices().collect();
-    let n = chars.len();
-    if n == 0 {
-        return text.len();
-    }
-    let mut i = 0;
+    let mut chars = s.char_indices().peekable();
 
     // skip leading whitespace
-    while i < n && chars[i].1.is_whitespace() {
-        i += 1;
+    while matches!(chars.peek(), Some((_, c)) if c.is_whitespace()) {
+        chars.next();
     }
-    if i == n {
+
+    let Some(&(_, first)) = chars.peek() else {
         return text.len();
+    };
+    let class = is_word_char(first);
+
+    let mut last_end = text.len();
+    while let Some(&(idx, c)) = chars.peek() {
+        if is_word_char(c) != class {
+            last_end = offset + idx;
+            break;
+        }
+        chars.next();
     }
 
-    let is_word = |c: char| c.is_alphanumeric() || c == '_';
-    let class = is_word(chars[i].1);
-
-    while i < n && is_word(chars[i].1) == class {
-        i += 1;
-    }
-
-    if i == n {
-        text.len()
-    } else {
-        offset + chars[i].0
-    }
+    last_end
 }
 
 #[cfg(test)]
@@ -87,6 +91,17 @@ mod tests {
         assert_eq!(line_end("hello\nworld", 8), 11);  // inside "world"
         assert_eq!(line_end("hello\nworld", 5), 5);   // at end of "hello"
         assert_eq!(line_end("hello", 3), 5);           // single line
+        assert_eq!(line_end("hello", 5), 5);           // at document end
+        assert_eq!(line_end("hello\nworld", 11), 11); // at last char of last line
+    }
+
+    #[test]
+    fn test_word_motion_multibyte() {
+        // é is 2 bytes (0xC3 0xA9); offset 7 = after "hé" + "llo"
+        let s = "héllo world";
+        let after_hello = "héllo".len(); // 6 bytes
+        assert_eq!(next_word_end(s, 0), after_hello);
+        assert_eq!(prev_word_start(s, after_hello), 0);
     }
 
     #[test]
