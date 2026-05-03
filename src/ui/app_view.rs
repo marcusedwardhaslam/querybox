@@ -260,7 +260,13 @@ impl AppView {
             view.clone(),
             cx,
         );
-        AppView::load_schema(driver.clone(), database.clone(), table.clone(), view.clone(), cx);
+        AppView::load_schema(
+            driver.clone(),
+            database.clone(),
+            table.clone(),
+            view.clone(),
+            cx,
+        );
         AppView::load_foreign_keys(driver, database, table, view, cx);
     }
 
@@ -589,8 +595,7 @@ impl AppView {
         view: Entity<TableView>,
         cx: &mut Context<Self>,
     ) {
-        let (tx, rx) =
-            tokio::sync::oneshot::channel::<Result<(Vec<Column>, Vec<Index>), String>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<(Vec<Column>, Vec<Index>), String>>();
         let db = database.clone();
         let tbl = table.clone();
         crate::db_runtime().spawn(async move {
@@ -741,43 +746,89 @@ impl AppView {
         }
         let idx = position.min(tabs.len() - 1);
         let tab_id = tabs[idx].id;
-        self.tab_bar.update(cx, |bar, cx| bar.set_active(tab_id, cx));
+        self.tab_bar
+            .update(cx, |bar, cx| bar.set_active(tab_id, cx));
         cx.notify();
     }
 
-    fn on_switch_to_tab_1(&mut self, _: &crate::SwitchToTab1, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_switch_to_tab_1(
+        &mut self,
+        _: &crate::SwitchToTab1,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.switch_to_tab_by_position(0, cx);
     }
 
-    fn on_switch_to_tab_2(&mut self, _: &crate::SwitchToTab2, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_switch_to_tab_2(
+        &mut self,
+        _: &crate::SwitchToTab2,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.switch_to_tab_by_position(1, cx);
     }
 
-    fn on_switch_to_tab_3(&mut self, _: &crate::SwitchToTab3, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_switch_to_tab_3(
+        &mut self,
+        _: &crate::SwitchToTab3,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.switch_to_tab_by_position(2, cx);
     }
 
-    fn on_switch_to_tab_4(&mut self, _: &crate::SwitchToTab4, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_switch_to_tab_4(
+        &mut self,
+        _: &crate::SwitchToTab4,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.switch_to_tab_by_position(3, cx);
     }
 
-    fn on_switch_to_tab_5(&mut self, _: &crate::SwitchToTab5, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_switch_to_tab_5(
+        &mut self,
+        _: &crate::SwitchToTab5,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.switch_to_tab_by_position(4, cx);
     }
 
-    fn on_switch_to_tab_6(&mut self, _: &crate::SwitchToTab6, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_switch_to_tab_6(
+        &mut self,
+        _: &crate::SwitchToTab6,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.switch_to_tab_by_position(5, cx);
     }
 
-    fn on_switch_to_tab_7(&mut self, _: &crate::SwitchToTab7, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_switch_to_tab_7(
+        &mut self,
+        _: &crate::SwitchToTab7,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.switch_to_tab_by_position(6, cx);
     }
 
-    fn on_switch_to_tab_8(&mut self, _: &crate::SwitchToTab8, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_switch_to_tab_8(
+        &mut self,
+        _: &crate::SwitchToTab8,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.switch_to_tab_by_position(7, cx);
     }
 
-    fn on_switch_to_tab_9(&mut self, _: &crate::SwitchToTab9, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_switch_to_tab_9(
+        &mut self,
+        _: &crate::SwitchToTab9,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.switch_to_tab_by_position(8, cx);
     }
 
