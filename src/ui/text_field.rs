@@ -452,7 +452,7 @@ impl EntityInputHandler for TextField {
         self.selected_range = new_selected_range_utf16
             .as_ref()
             .map(|r| self.range_from_utf16(r))
-            .map(|r| r.start + range.start..r.end + range.end)
+            .map(|r| r.start + range.start..r.end + range.start)
             .unwrap_or_else(|| range.start + new_text.len()..range.start + new_text.len());
         cx.notify();
     }

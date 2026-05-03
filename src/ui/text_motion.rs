@@ -1,9 +1,7 @@
-#[allow(dead_code)]
 pub fn line_start(text: &str, offset: usize) -> usize {
     text[..offset].rfind('\n').map(|i| i + 1).unwrap_or(0)
 }
 
-#[allow(dead_code)]
 pub fn line_end(text: &str, offset: usize) -> usize {
     text[offset..].find('\n').map(|i| offset + i).unwrap_or(text.len())
 }
