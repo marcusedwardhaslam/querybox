@@ -8,3 +8,4 @@ pub mod sql_editor;
 pub mod tab_bar;
 pub mod table_view;
 pub mod text_field;
+pub mod text_motion;
