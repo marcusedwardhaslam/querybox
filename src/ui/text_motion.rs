@@ -13,7 +13,6 @@ fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
-#[allow(dead_code)]
 pub fn prev_word_start(text: &str, offset: usize) -> usize {
     let s = &text[..offset];
     let mut chars = s.char_indices().rev().peekable();
@@ -45,7 +44,6 @@ pub fn prev_word_start(text: &str, offset: usize) -> usize {
     }
 }
 
-#[allow(dead_code)]
 pub fn next_word_end(text: &str, offset: usize) -> usize {
     let s = &text[offset..];
     let mut chars = s.char_indices().peekable();

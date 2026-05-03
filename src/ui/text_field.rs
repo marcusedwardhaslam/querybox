@@ -320,6 +320,9 @@ impl TextField {
     fn on_delete_word_back(&mut self, _: &DeleteWordBack, window: &mut Window, cx: &mut Context<Self>) {
         if self.selected_range.is_empty() {
             let offset = text_motion::prev_word_start(&self.content, self.cursor_offset());
+            if offset == self.cursor_offset() {
+                return;
+            }
             self.select_to(offset, cx);
         }
         self.replace_text_in_range(None, "", window, cx);
@@ -328,6 +331,9 @@ impl TextField {
     fn on_delete_word_forward(&mut self, _: &DeleteWordForward, window: &mut Window, cx: &mut Context<Self>) {
         if self.selected_range.is_empty() {
             let offset = text_motion::next_word_end(&self.content, self.cursor_offset());
+            if offset == self.cursor_offset() {
+                return;
+            }
             self.select_to(offset, cx);
         }
         self.replace_text_in_range(None, "", window, cx);
@@ -335,6 +341,9 @@ impl TextField {
 
     fn on_delete_to_line_start(&mut self, _: &DeleteToLineStart, window: &mut Window, cx: &mut Context<Self>) {
         if self.selected_range.is_empty() {
+            if self.cursor_offset() == 0 {
+                return;
+            }
             self.select_to(0, cx);
         }
         self.replace_text_in_range(None, "", window, cx);
@@ -424,6 +433,8 @@ impl EntityInputHandler for TextField {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.undo_stack.push((self.content.clone(), self.selected_range.clone()));
+        self.redo_stack.clear();
         let range = range_utf16
             .as_ref()
             .map(|r| self.range_from_utf16(r))
